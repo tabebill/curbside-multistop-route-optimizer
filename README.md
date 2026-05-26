@@ -1,51 +1,95 @@
-# Curbside Route Optimizer
+# Curbside Multistop Route Optimizer - Production Branch
 
-A simple, API-free Next.js demo for street-sweep route ordering. Paste a list of addresses, choose a start stop, and compare a normal nearest-neighbor route with a curbside route that finishes one side of a street before crossing to the other side.
+This branch contains the fuller Google-backed version of the curbside multi-stop route optimizer. It is meant for builders who want a realistic starting point for a production webapp, not just the API-free demo on `main`.
 
-This repository has two versions:
+## Which Branch Should I Use?
 
-| Branch | Best for | External services | Notes |
-| --- | --- | --- | --- |
-| `main` | Trying the curbside ordering idea quickly | None | API-free demo with a schematic route preview. |
-| `production` | Building a real Google-backed multi-stop app | Google Maps Platform + Google Cloud | Requires your own API keys, service account, billing, and Cloud Storage bucket. |
+| Branch | Best for | External services |
+| --- | --- | --- |
+| `main` | Trying the curbside street-sweep idea quickly | None |
+| `production` | Building a real multi-stop routing app | Google Maps Platform + Google Cloud |
 
-The `main` branch keeps the interesting routing idea while avoiding API keys, cloud credentials, user accounts, and paid map services.
+Use `main` if you want a safe, no-setup demo. Use `production` if you want geocoding, map rendering, Route Optimization API calls, async large-route jobs, exports, and a path toward deployment.
 
-## Features
+## What This Version Includes
 
-- Paste newline-separated street addresses.
-- Load a Tulsa sample route.
-- Detect duplicate and unparseable rows.
-- Choose round-trip or open-route mode.
-- Choose nearest-neighbor or curbside street-sweep ordering.
-- Pick the starting stop.
-- Preview the route on a schematic map.
-- Export the ordered route to CSV.
+- Next.js/React route workspace.
+- Manual and file-based stop imports.
+- Address and coordinate input support.
+- Server-side geocoding and validation.
+- Duplicate/repeat stop filtering.
+- Current-location start option.
+- Optional selected end stop or round trip.
+- Google Maps marker rendering and route polyline display.
+- Curbside street-sweep ordering for same-street, same-curb delivery.
+- Google Route Optimization API integration.
+- Async `batchOptimizeTours` flow for large routes.
+- Google Cloud Storage support for batch request/response files.
+- CSV, JSON, KML, GPX, and printable export options.
+- Local autosave, rate-limit hooks, and basic cost guardrails.
 
-## How the Curbside Mode Works
+## Required Google Services
 
-1. Parse each stop into a house number, normalized street name, and curb side.
-2. Group stops by street.
-3. Split each street into odd and even house-number sides.
-4. Sequence one curb face in house-number order.
-5. Sequence the opposite curb face before moving to the next nearby street.
+Enable these APIs in your Google Cloud project:
 
-This is a local heuristic, not a replacement for production routing APIs. A production version should pair this ordering layer with real geocoding, road-network routing, turn restrictions, and route geometry from a provider such as Google Route Optimization API.
+- Maps JavaScript API
+- Geocoding API
+- Route Optimization API
+- Cloud Storage API
 
-## Getting Started
+Optional, depending on how you extend the app:
 
-Use the API-free demo:
+- Places API (New), for address autocomplete.
+- Routes API, for extra short-segment route detail.
+- Address Validation API, for postal-quality address validation.
+
+## Environment Variables
+
+Copy the example file:
 
 ```bash
-git clone https://github.com/tabebill/curbside-multistop-route-optimizer.git
-cd curbside-multistop-route-optimizer
-npm install
-npm run dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser.
+Fill these values with your own credentials:
 
-Use the production branch:
+```bash
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=
+GOOGLE_MAPS_SERVER_KEY=
+GOOGLE_CLOUD_PROJECT_ID=
+GOOGLE_APPLICATION_CREDENTIALS=
+GOOGLE_ROUTE_OPTIMIZATION_BUCKET=
+```
+
+Optional/legacy compatibility variables:
+
+```bash
+GOOGLE_MAPS_API_KEY=
+GOOGLE_CLOUD_PROJECT_NUMBER=
+GOOGLE_ROE_SERVICE_ACCOUNT=
+```
+
+Notes:
+
+- `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is used in the browser for map rendering.
+- `GOOGLE_MAPS_SERVER_KEY` is used only on the server for geocoding.
+- `GOOGLE_APPLICATION_CREDENTIALS` should point to a local service-account JSON file during local development.
+- Do not commit `.env.local` or service-account JSON files.
+- In production hosting, store service-account credentials in your host's secret manager instead of committing files.
+
+## Google Cloud Setup
+
+1. Create or choose a Google Cloud project.
+2. Enable billing.
+3. Enable the APIs listed above.
+4. Create a browser API key restricted by HTTP referrer for Maps JavaScript API.
+5. Create a server API key restricted to Geocoding API.
+6. Create a service account for Route Optimization API and Cloud Storage access.
+7. Grant the service account access needed for Route Optimization and Cloud Storage.
+8. Create a Cloud Storage bucket for batch optimization input/output files.
+9. Put your local service-account JSON outside the repo and reference it with `GOOGLE_APPLICATION_CREDENTIALS`.
+
+## Local Development
 
 ```bash
 git clone -b production https://github.com/tabebill/curbside-multistop-route-optimizer.git
@@ -55,25 +99,20 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Then fill `.env.local` with your own Google credentials. Do not commit `.env.local` or service account JSON files.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Scripts
+## Verification
 
-- `npm run dev` starts the local app.
-- `npm run build` creates a production build.
-- `npm run lint` runs ESLint.
+```bash
+npm run lint
+npm run build
+```
 
-## Tech Stack
+The app can load without credentials, but map rendering, geocoding, validation, and optimization require configured Google credentials.
 
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS
+## Security
 
-## Production Ideas
-
-- The `production` branch includes Google Maps rendering, server-side geocoding, Route Optimization API calls, async large-route jobs, Cloud Storage integration, exports, and the curbside street-sweep ordering layer.
-- Next production steps include authentication, persistence/database storage, user-owned saved routes, billing controls, and deployment hardening.
+This branch intentionally does not include personal secrets, `.env.local`, service-account JSON, or Cloud Storage credentials. Before deploying your own fork, review API key restrictions, quota limits, service-account permissions, and billing alerts.
 
 ## License
 

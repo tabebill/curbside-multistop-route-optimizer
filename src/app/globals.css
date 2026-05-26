@@ -1,32 +1,111 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8f7;
+  --foreground: #111c19;
+  --panel: #ffffff;
+  --panel-subtle: #f0f5f3;
+  --muted: #60706b;
+  --line: #d7e2de;
+  --accent: #0f766e;
+  --accent-strong: #0d5f59;
+  --warning: #b45309;
+  --danger: #b42318;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-subtle: var(--panel-subtle);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 button,
+input,
 select,
 textarea {
-  border-radius: 0;
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.route-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 280px),
+    var(--background);
+}
+
+.route-shell header {
+  backdrop-filter: blur(18px);
+}
+
+.route-shell div.border.border-line.bg-panel,
+.route-shell div.border.border-line.bg-panel-subtle {
+  border-radius: 8px;
+}
+
+.route-shell div.border.border-line.bg-panel {
+  box-shadow: 0 1px 2px rgba(17, 28, 25, 0.04), 0 14px 40px rgba(17, 28, 25, 0.04);
+}
+
+.route-shell input:not([type="file"]),
+.route-shell select,
+.route-shell textarea {
+  border-radius: 6px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.route-shell input:not([type="file"]):focus,
+.route-shell select:focus,
+.route-shell textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+  outline: none;
+}
+
+.route-shell button,
+.route-shell a {
+  border-radius: 6px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.route-shell button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.route-shell table tbody tr {
+  transition: background-color 140ms ease, opacity 140ms ease;
 }

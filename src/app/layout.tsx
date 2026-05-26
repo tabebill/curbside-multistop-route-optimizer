@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Curbside Route Optimizer",
-  description: "A simple street-sweep route optimization demo built with Next.js.",
+  title: "Multi-Stop Route Optimizer",
+  description: "Plan, validate, optimize, and export large multi-stop routes.",
 };
 
 export default function RootLayout({
@@ -25,9 +25,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }
