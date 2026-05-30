@@ -14,6 +14,7 @@ import {
 import type {
   CoordinateStop,
   EndMode,
+  RouteOptimizationMode,
 } from "@/lib/route-types";
 
 type ValidateBody = {
@@ -22,6 +23,7 @@ type ValidateBody = {
   endMode?: EndMode;
   endStopId?: string;
   curbsideRouting?: boolean;
+  routeOptimizationMode?: RouteOptimizationMode;
 };
 
 export async function POST(request: Request) {
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     endMode: body.endMode,
     endStopId: body.endStopId,
     curbsideRouting: body.curbsideRouting,
+    routeOptimizationMode: body.routeOptimizationMode,
     validateOnly: true,
   });
 

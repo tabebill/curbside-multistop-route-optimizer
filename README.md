@@ -11,6 +11,12 @@ This branch contains the fuller Google-backed version of the curbside multi-stop
 
 Use `main` if you want a safe, no-setup demo. Use `production` if you want geocoding, map rendering, Route Optimization API calls, async large-route jobs, exports, and a path toward deployment.
 
+## Route Optimization Modes
+
+- `Google`: lets Google Route Optimization choose the global visit order. Use this when shortest/fastest routing matters most.
+- `Curbside`: lets Google choose the global order while asking for side-of-road waypoint handling.
+- `Strict`: forces the app's street-sweep order before calling Google. Use only when same-curb delivery order matters more than global shortest route.
+
 ## What This Version Includes
 
 - Next.js/React route workspace.

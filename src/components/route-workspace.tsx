@@ -64,6 +64,7 @@ import type {
   EndMode,
   GeocodeResult,
   OptimizedRoute,
+  RouteOptimizationMode,
   RouteStop,
   StopStatus,
 } from "@/lib/route-types";
@@ -112,6 +113,7 @@ type BatchStatusResponse =
 type SavedWorkspace = {
   routeName: string;
   curbsideRouting?: boolean;
+  routeOptimizationMode?: RouteOptimizationMode;
   startMode?: StartMode;
   endMode: EndMode;
   startStopId: string;
@@ -429,7 +431,8 @@ function makeFileSafeName(name: string) {
 export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const [routeName, setRouteName] = useState("Untitled route");
-  const [curbsideRouting, setCurbsideRouting] = useState(false);
+  const [routeOptimizationMode, setRouteOptimizationMode] =
+    useState<RouteOptimizationMode>("google_optimized");
   const [startMode, setStartMode] = useState<StartMode>("route_stop");
   const [endMode, setEndMode] = useState<EndMode>("round_trip");
   const [startStopId, setStartStopId] = useState("");
@@ -475,7 +478,10 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         try {
           const parsed = JSON.parse(saved) as SavedWorkspace;
           setRouteName(parsed.routeName || "Untitled route");
-          setCurbsideRouting(Boolean(parsed.curbsideRouting));
+          setRouteOptimizationMode(
+            parsed.routeOptimizationMode ??
+              (parsed.curbsideRouting ? "curbside_strict" : "google_optimized"),
+          );
           setStartMode(parsed.startMode || "route_stop");
           setEndMode(parsed.endMode || "round_trip");
           setStartStopId(parsed.startStopId || "");
@@ -501,7 +507,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
 
     const snapshot: SavedWorkspace = {
       routeName,
-      curbsideRouting,
+      routeOptimizationMode,
       startMode,
       endMode,
       startStopId,
@@ -514,11 +520,11 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     window.localStorage.setItem(workspaceStorageKey, JSON.stringify(snapshot));
   }, [
     currentLocation,
-    curbsideRouting,
     endMode,
     endStopId,
     isHydrated,
     optimizedRoute,
+    routeOptimizationMode,
     routeName,
     startMode,
     startStopId,
@@ -926,7 +932,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         startStopId: resolvedStartStopId,
         endMode,
         endStopId: resolvedEndStopId,
-        curbsideRouting,
+        routeOptimizationMode,
       }),
     });
     const data = (await response.json()) as OptimizationValidation | OptimizeError;
@@ -1113,7 +1119,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         startStopId: resolvedStartStopId,
         endMode,
         endStopId: resolvedEndStopId,
-        curbsideRouting,
+        routeOptimizationMode,
       }),
     });
     const data = (await response.json()) as OptimizedRoute | OptimizeError;
@@ -1154,7 +1160,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         startStopId: resolvedStartStopId,
         endMode,
         endStopId: resolvedEndStopId,
-        curbsideRouting,
+        routeOptimizationMode,
       }),
     });
     const data = (await response.json()) as BatchOptimizationJob | OptimizeError;
@@ -1184,7 +1190,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           startStopId: resolvedStartStopId,
           endMode,
           endStopId: resolvedEndStopId,
-          curbsideRouting,
+          routeOptimizationMode,
         }),
       });
       const data = (await response.json()) as BatchStatusResponse | OptimizeError;
@@ -1225,9 +1231,9 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
       }
     },
     [
-      curbsideRouting,
       endMode,
       optimizationStopOptions,
+      routeOptimizationMode,
       resolvedEndStopId,
       resolvedStartStopId,
     ],
@@ -1420,28 +1426,27 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
 
               <div>
                 <span className="mb-2 block text-sm font-medium">
-                  Curbside
+                  Optimization
                 </span>
-                <div className="grid grid-cols-2 rounded-md border border-line bg-panel-subtle p-1">
+                <div className="grid grid-cols-1 rounded-md border border-line bg-panel-subtle p-1 sm:grid-cols-3">
                   {[
-                    ["off", "Off"],
-                    ["on", "On"],
+                    ["google_optimized", "Google"],
+                    ["curbside_assisted", "Curbside"],
+                    ["curbside_strict", "Strict"],
                   ].map(([value, label]) => {
-                    const isActive =
-                      (value === "on" && curbsideRouting) ||
-                      (value === "off" && !curbsideRouting);
+                    const isActive = value === routeOptimizationMode;
 
                     return (
                       <button
                         key={value}
                         type="button"
                         onClick={() => {
-                          setCurbsideRouting(value === "on");
+                          setRouteOptimizationMode(value as RouteOptimizationMode);
                           setOptimizedRoute(undefined);
                           setBatchJob(undefined);
                         }}
                         className={classNames(
-                          "h-9 text-sm font-medium",
+                          "h-9 px-2 text-sm font-medium",
                           isActive
                             ? "bg-panel text-foreground shadow-sm"
                             : "text-muted hover:text-foreground",

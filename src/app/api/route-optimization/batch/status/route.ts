@@ -16,6 +16,7 @@ import {
 import type {
   CoordinateStop,
   EndMode,
+  RouteOptimizationMode,
 } from "@/lib/route-types";
 
 type BatchStatusBody = {
@@ -26,6 +27,7 @@ type BatchStatusBody = {
   endMode?: EndMode;
   endStopId?: string;
   curbsideRouting?: boolean;
+  routeOptimizationMode?: RouteOptimizationMode;
 };
 
 type OperationResponse = {
@@ -140,6 +142,7 @@ export async function POST(request: Request) {
     endMode: body.endMode,
     endStopId: body.endStopId,
     curbsideRouting: body.curbsideRouting,
+    routeOptimizationMode: body.routeOptimizationMode,
   });
 
   return NextResponse.json(

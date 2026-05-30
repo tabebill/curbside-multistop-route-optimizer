@@ -15,6 +15,7 @@ import {
 import type {
   CoordinateStop,
   EndMode,
+  RouteOptimizationMode,
 } from "@/lib/route-types";
 
 type OptimizeBody = {
@@ -23,6 +24,7 @@ type OptimizeBody = {
   endMode?: EndMode;
   endStopId?: string;
   curbsideRouting?: boolean;
+  routeOptimizationMode?: RouteOptimizationMode;
 };
 
 const synchronousStopLimit = 100;
@@ -105,6 +107,7 @@ export async function POST(request: Request) {
     endMode: body.endMode,
     endStopId: body.endStopId,
     curbsideRouting: body.curbsideRouting,
+    routeOptimizationMode: body.routeOptimizationMode,
   });
   const cached = optimizeCache.get(cacheKey);
 
@@ -121,6 +124,7 @@ export async function POST(request: Request) {
     endMode: body.endMode,
     endStopId: body.endStopId,
     curbsideRouting: body.curbsideRouting,
+    routeOptimizationMode: body.routeOptimizationMode,
   });
   const accessToken = await getGoogleAccessToken();
   const response = await fetch(

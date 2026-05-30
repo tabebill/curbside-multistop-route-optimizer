@@ -2,6 +2,7 @@ import type {
   CoordinateStop,
   EndMode,
   OptimizedRoute,
+  RouteOptimizationMode,
 } from "@/lib/route-types";
 import { currentLocationStopId } from "@/lib/route-types";
 
@@ -11,6 +12,7 @@ type OptimizeRequestOptions = {
   endMode?: EndMode;
   endStopId?: string;
   curbsideRouting?: boolean;
+  routeOptimizationMode?: RouteOptimizationMode;
   validateOnly?: boolean;
 };
 
@@ -128,6 +130,11 @@ function getVehicleCosts() {
 
 function getRouteWindowHours(shipmentCount: number) {
   return Math.max(12, Math.ceil((shipmentCount + 1) / 25));
+}
+
+function getRouteOptimizationMode(options: OptimizeRequestOptions) {
+  return options.routeOptimizationMode ??
+    (options.curbsideRouting ? "curbside_strict" : "google_optimized");
 }
 
 function normalizeStreetToken(token: string) {
@@ -398,6 +405,9 @@ function getInjectedSolutionConstraint(
 }
 
 export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
+  const routeOptimizationMode = getRouteOptimizationMode(options);
+  const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
+  const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
     stops,
@@ -406,7 +416,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = options.curbsideRouting
+  const shipmentStops = usesStrictCurbsideSequence
     ? orderCurbsideStops(unorderedShipmentStops, start)
     : unorderedShipmentStops;
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -414,7 +424,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const endTime = new Date(
     tomorrow.getTime() + getRouteWindowHours(shipmentStops.length) * 60 * 60 * 1000,
   );
-  const injectedSolutionConstraint = options.curbsideRouting
+  const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
 
@@ -428,15 +438,15 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
         label: stop.id,
         deliveries: [
           {
-            arrivalWaypoint: getWaypoint(stop, options.curbsideRouting),
+            arrivalWaypoint: getWaypoint(stop, usesCurbsideWaypoints),
           },
         ],
       })),
       vehicles: [
         {
           label: "primary-route",
-          startWaypoint: getWaypoint(start, options.curbsideRouting),
-          endWaypoint: getWaypoint(end, options.curbsideRouting),
+          startWaypoint: getWaypoint(start, usesCurbsideWaypoints),
+          endWaypoint: getWaypoint(end, usesCurbsideWaypoints),
           ...getVehicleCosts(),
         },
       ],
