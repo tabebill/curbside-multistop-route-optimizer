@@ -1028,14 +1028,14 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     });
   }
 
-  function validateInvalidRoutes() {
+  function acceptGoogleCandidatesForInvalidStops() {
     startTransition(async () => {
       try {
         let nextStops = stops;
         const addresses = getInvalidAddressList(nextStops);
 
         if (!addresses.length) {
-          setNotice("No invalid address rows to validate");
+          setNotice("No invalid address rows to review");
           return;
         }
 
@@ -1071,13 +1071,13 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         setNotice(
           error instanceof Error
             ? error.message
-            : "Invalid route validation failed",
+            : "Invalid address review failed",
         );
       }
     });
   }
 
-  function validateSelectedStop() {
+  function validateSelectedStop(acceptGoogleCandidate = false) {
     if (!selectedStop) {
       setNotice("Select a stop first");
       return;
@@ -1094,7 +1094,9 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
 
     startTransition(async () => {
       try {
-        const [result] = await geocodeAddresses([address]);
+        const [result] = await geocodeAddresses([address], {
+          acceptGoogleCandidate,
+        });
         const geocodeResult =
           result ??
           ({
@@ -1125,7 +1127,9 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         setBatchJob(undefined);
         setNotice(
           geocodeResult.status === "ok"
-            ? "Selected address validated"
+            ? acceptGoogleCandidate
+              ? "Google candidate accepted"
+              : "Selected address validated"
             : geocodeResult.message || "Selected address needs correction",
         );
       } catch (error) {
@@ -1841,22 +1845,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                       className="inline-flex h-10 min-w-28 items-center justify-center gap-2 border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:border-red-300"
                     >
                       <AlertTriangle className="h-4 w-4" />
-                      Review Invalid
-                    </button>
-                  ) : null}
-                  {metrics.invalid ? (
-                    <button
-                      type="button"
-                      onClick={validateInvalidRoutes}
-                      disabled={isPending}
-                      className="inline-flex h-10 min-w-44 items-center justify-center gap-2 border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-900 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4" />
-                      )}
-                      Validate Invalid Routes
+                      Review Invalid Addresses
                     </button>
                   ) : null}
                   <button
@@ -2045,6 +2034,45 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           </div>
 
           <aside className="space-y-4">
+            {metrics.invalid ? (
+              <div className="border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold uppercase">
+                      Invalid Address Review
+                    </h2>
+                    <p className="mt-1 text-sm">
+                      {metrics.invalid.toLocaleString()} invalid stops need review.
+                    </p>
+                  </div>
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 min-[1180px]:grid-cols-1">
+                  <button
+                    type="button"
+                    onClick={reviewFirstInvalidStop}
+                    className="inline-flex h-10 items-center justify-center gap-2 border border-amber-300 bg-white px-3 text-sm font-semibold hover:border-amber-500"
+                  >
+                    <PencilLine className="h-4 w-4" />
+                    Review Next
+                  </button>
+                  <button
+                    type="button"
+                    onClick={acceptGoogleCandidatesForInvalidStops}
+                    disabled={isPending}
+                    className="inline-flex h-10 items-center justify-center gap-2 bg-amber-900 px-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Accept All Google Results
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {selectedStop ? (
               <div className="border border-line bg-panel p-4">
                 <div className="mb-4 flex items-center justify-between">
@@ -2149,7 +2177,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={validateSelectedStop}
+                      onClick={() => validateSelectedStop()}
                       disabled={isPending || !selectedStop.address.trim()}
                       className="inline-flex h-10 items-center justify-center gap-2 bg-foreground px-3 font-semibold text-white hover:bg-accent-strong disabled:opacity-40"
                     >
@@ -2173,6 +2201,21 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                       {selectedStop.pinned ? "Unpin" : "Pin"}
                     </button>
                   </div>
+                  {selectedStop.status === "invalid" ? (
+                    <button
+                      type="button"
+                      onClick={() => validateSelectedStop(true)}
+                      disabled={isPending || !selectedStop.address.trim()}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 border border-amber-300 bg-amber-50 px-3 font-semibold text-amber-900 hover:border-amber-500 disabled:opacity-40"
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      Accept Google Result
+                    </button>
+                  ) : null}
                   <div>
                     <button
                       type="button"
