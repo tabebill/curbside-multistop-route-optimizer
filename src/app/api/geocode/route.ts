@@ -17,6 +17,7 @@ const geocodeCache = new Map<
 
 type GeocodeBody = {
   addresses?: string[];
+  acceptGoogleCandidate?: boolean;
 };
 
 type GoogleAddressComponent = {
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as GeocodeBody;
   const apiKey =
     process.env.GOOGLE_MAPS_SERVER_KEY || process.env.GOOGLE_MAPS_API_KEY;
+  const acceptGoogleCandidate = Boolean(body.acceptGoogleCandidate);
   const addresses = [
     ...new Set(body.addresses?.map((item) => normalizeAddressInput(item.trim()))),
   ].filter(Boolean);
@@ -176,7 +178,7 @@ export async function POST(request: Request) {
 
   const results = await Promise.all(
     addresses.map(async (address): Promise<GeocodeResult> => {
-      const cacheKey = `${geocodeCacheVersion}:${address.toLowerCase()}`;
+      const cacheKey = `${geocodeCacheVersion}:${acceptGoogleCandidate ? "accept" : "strict"}:${address.toLowerCase()}`;
       const cached = geocodeCache.get(cacheKey);
 
       if (cached && cached.expiresAt > Date.now()) {
@@ -204,7 +206,7 @@ export async function POST(request: Request) {
       if (data.status === "OK" && first && location) {
         const failureMessage = getGeocodeFailureMessage(address, first);
 
-        if (failureMessage) {
+        if (failureMessage && !acceptGoogleCandidate) {
           const result = {
             input: address,
             status: "failed",
@@ -229,6 +231,8 @@ export async function POST(request: Request) {
           latitude: location.lat,
           longitude: location.lng,
           placeId: first.place_id,
+          acceptedGoogleCandidate: Boolean(failureMessage),
+          message: failureMessage,
         } satisfies GeocodeResult;
 
         geocodeCache.set(cacheKey, {

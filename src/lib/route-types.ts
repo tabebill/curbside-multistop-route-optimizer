@@ -36,6 +36,7 @@ export type GeocodeResult = {
   longitude?: number;
   placeId?: string;
   message?: string;
+  acceptedGoogleCandidate?: boolean;
 };
 
 export type CoordinateStop = {

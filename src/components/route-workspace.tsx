@@ -321,16 +321,32 @@ function getPendingAddressList(sourceStops: RouteStop[]) {
   ];
 }
 
+function getInvalidAddressList(sourceStops: RouteStop[]) {
+  return [
+    ...new Set(
+      sourceStops
+        .filter(
+          (stop) =>
+            !stop.disabled &&
+            stop.status === "invalid" &&
+            stop.address.trim(),
+        )
+        .map((stop) => normalizeAddressInput(stop.address)),
+    ),
+  ];
+}
+
 function applyGeocodeResultsToStopList(
   sourceStops: RouteStop[],
   results: GeocodeResult[],
+  statuses: StopStatus[] = ["needs_address_validation"],
 ) {
   const byInput = new Map(
     results.map((result) => [result.input.trim().toLowerCase(), result]),
   );
 
   return sourceStops.map((stop) => {
-    if (stop.status !== "needs_address_validation" || stop.disabled) {
+    if (!statuses.includes(stop.status) || stop.disabled) {
       return stop;
     }
 
@@ -876,11 +892,17 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     return currentLocation ?? requestCurrentLocation();
   }
 
-  async function geocodeAddresses(addresses: string[]) {
+  async function geocodeAddresses(
+    addresses: string[],
+    options: { acceptGoogleCandidate?: boolean } = {},
+  ) {
     const response = await fetch("/api/geocode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addresses }),
+      body: JSON.stringify({
+        addresses,
+        acceptGoogleCandidate: options.acceptGoogleCandidate,
+      }),
     });
     const data = (await response.json()) as {
       results?: GeocodeResult[];
@@ -1001,6 +1023,55 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           error instanceof Error
             ? error.message
             : "Route validation failed",
+        );
+      }
+    });
+  }
+
+  function validateInvalidRoutes() {
+    startTransition(async () => {
+      try {
+        let nextStops = stops;
+        const addresses = getInvalidAddressList(nextStops);
+
+        if (!addresses.length) {
+          setNotice("No invalid address rows to validate");
+          return;
+        }
+
+        let checked = 0;
+        let accepted = 0;
+
+        for (let index = 0; index < addresses.length; index += 25) {
+          const results = await geocodeAddresses(
+            addresses.slice(index, index + 25),
+            { acceptGoogleCandidate: true },
+          );
+
+          checked += results.length;
+          accepted += results.filter((result) => result.status === "ok").length;
+          nextStops = applyGeocodeResultsToStopList(
+            nextStops,
+            results,
+            ["invalid"],
+          );
+          setStops(nextStops);
+          setOptimizedRoute(undefined);
+          setBatchJob(undefined);
+          setNotice(
+            `${checked.toLocaleString()} of ${addresses.length.toLocaleString()} invalid addresses checked`,
+          );
+        }
+
+        setStatusFilter(accepted ? "valid" : "invalid");
+        setNotice(
+          `${accepted.toLocaleString()} of ${addresses.length.toLocaleString()} invalid addresses accepted from Google`,
+        );
+      } catch (error) {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Invalid route validation failed",
         );
       }
     });
@@ -1771,6 +1842,21 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                     >
                       <AlertTriangle className="h-4 w-4" />
                       Review Invalid
+                    </button>
+                  ) : null}
+                  {metrics.invalid ? (
+                    <button
+                      type="button"
+                      onClick={validateInvalidRoutes}
+                      disabled={isPending}
+                      className="inline-flex h-10 min-w-44 items-center justify-center gap-2 border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-900 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      Validate Invalid Routes
                     </button>
                   ) : null}
                   <button
