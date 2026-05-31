@@ -1340,10 +1340,6 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     }
 
     setNavigationIndex(index);
-
-    if (visit.stopId !== currentLocationStopId) {
-      setSelectedStopId(visit.stopId);
-    }
   }
 
   function moveVisit(stopId: string, direction: -1 | 1) {
