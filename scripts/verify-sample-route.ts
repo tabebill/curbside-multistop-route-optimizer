@@ -110,7 +110,7 @@ async function main() {
       stops,
       startStopId: stops[0]?.id,
       endMode: "last_stop",
-      routeOptimizationMode: "google_optimized",
+      routeOptimizationMode: "auto",
     },
   );
 

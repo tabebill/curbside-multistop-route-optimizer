@@ -119,7 +119,7 @@ async function optimizeStops(
       startStopId,
       endMode,
       endStopId: endMode === "selected_stop" ? endStopId : undefined,
-      routeOptimizationMode: "google_optimized",
+      routeOptimizationMode: "auto",
     },
   );
 

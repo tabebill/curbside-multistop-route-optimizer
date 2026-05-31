@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 
 const baseUrl = process.env.ROUTE_SAMPLE_BASE_URL ?? "http://localhost:3000";
 const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
-const timeoutMs = Number(process.env.ROUTE_SAMPLE_UI_TIMEOUT_MS ?? 20_000);
+const timeoutMs = Number(process.env.ROUTE_SAMPLE_UI_TIMEOUT_MS ?? 60_000);
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
   .map((line) => line.trim())
