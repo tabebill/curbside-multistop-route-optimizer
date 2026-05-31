@@ -429,6 +429,11 @@ test("quality fallback replaces suspicious Google order with seeded local order"
     ["near-1", "near-2", "near-3", "far"],
   );
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert.equal(route.qualityFallback?.applied, true);
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.suspiciousJumpCount,
+    1,
+  );
   assert.equal(route.validationErrors.length, 1);
 });
 

@@ -1676,13 +1676,20 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     return route;
   }
 
+  const fallbackMessage =
+    "Google returned a route with suspicious skipped-nearby stops; using the seeded local order instead.";
+
   return {
     ...fallbackRoute,
+    qualityFallback: {
+      applied: true,
+      message: fallbackMessage,
+      originalQualityDiagnostics: route.qualityDiagnostics,
+    },
     validationErrors: [
       ...fallbackRoute.validationErrors,
       {
-        message:
-          "Google returned a route with suspicious skipped-nearby stops; using the seeded local order instead.",
+        message: fallbackMessage,
         originalQualityDiagnostics: route.qualityDiagnostics,
       },
     ],

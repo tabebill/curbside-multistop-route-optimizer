@@ -75,6 +75,12 @@ export type RouteQualityDiagnostics = {
   issues: RouteQualityIssue[];
 };
 
+export type RouteQualityFallback = {
+  applied: boolean;
+  message: string;
+  originalQualityDiagnostics?: RouteQualityDiagnostics;
+};
+
 export type OptimizedRoute = {
   algorithmVersion?: string;
   visitOrder: OptimizedVisit[];
@@ -89,6 +95,7 @@ export type OptimizedRoute = {
   inputUri?: string;
   outputUri?: string;
   qualityDiagnostics?: RouteQualityDiagnostics;
+  qualityFallback?: RouteQualityFallback;
 };
 
 export type BatchOptimizationJob = {

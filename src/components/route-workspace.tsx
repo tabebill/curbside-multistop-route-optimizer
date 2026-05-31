@@ -134,7 +134,7 @@ type CurrentLocation = {
 type StatusFilter = "all" | "disabled" | "repeat" | StopStatus;
 
 const workspaceStorageKey = "multi-stop-route-optimizer.workspace.v2";
-const routeAlgorithmVersion = "multi-candidate-v2";
+const routeAlgorithmVersion = "quality-fallback-v3";
 const syncStopLimit = 100;
 const sampleRows = `address
 840 E 51 PL N TULSA 74126
@@ -157,6 +157,16 @@ const sampleRows = `address
 825 E 52 ST N TULSA 74126
 814 E 52 ST N TULSA 74126
 818 E 52 ST N TULSA 74126`;
+
+function formatOptimizedRouteNotice(route: OptimizedRoute) {
+  const baseNotice = `Optimized ${route.visitOrder.length.toLocaleString()} stops - ${formatDistance(
+    route.distanceMeters,
+  )} - ${formatDuration(route.durationSeconds)}`;
+
+  return route.qualityFallback?.applied && route.qualityFallback.message
+    ? `${baseNotice}. ${route.qualityFallback.message}`
+    : baseNotice;
+}
 
 function classNames(...items: Array<string | false | undefined>) {
   return items.filter(Boolean).join(" ");
@@ -1236,11 +1246,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     setStops((current) => buildOrderedStops(current, nextRoute));
     setNavigationIndex(0);
     setBatchJob(undefined);
-    setNotice(
-      `Optimized ${nextRoute.visitOrder.length.toLocaleString()} stops - ${formatDistance(
-        nextRoute.distanceMeters,
-      )} - ${formatDuration(nextRoute.durationSeconds)}`,
-    );
+    setNotice(formatOptimizedRouteNotice(nextRoute));
   }
 
   async function submitBatchOptimization(stopOptions = optimizationStopOptions) {
@@ -1319,7 +1325,11 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         setStops((current) => buildOrderedStops(current, nextRoute));
         setNavigationIndex(0);
         setBatchJob({ ...job, status: "completed" });
-        setNotice(`Async optimization completed: ${job.jobId}`);
+        setNotice(
+          nextRoute.qualityFallback?.applied && nextRoute.qualityFallback.message
+            ? `Async optimization completed: ${job.jobId}. ${nextRoute.qualityFallback.message}`
+            : `Async optimization completed: ${job.jobId}`,
+        );
       } else if ("status" in data && data.status === "failed") {
         const message =
           typeof data.error === "string"
