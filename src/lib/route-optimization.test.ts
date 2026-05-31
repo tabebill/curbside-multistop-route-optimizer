@@ -525,6 +525,63 @@ test("quality fallback rejects compact but scattered Google numbering", () => {
   );
 });
 
+test("quality fallback rejects routes between the old and strict continuity gates", () => {
+  const stops: CoordinateStop[] = Array.from({ length: 16 }, (_, index) => ({
+    id: `line-${index}`,
+    label: `${100 + index * 2} E CONTINUITY ST TULSA 74103`,
+    latitude: 36,
+    longitude: -96 + index * 0.001,
+  }));
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 4 },
+            { shipmentIndex: 2 },
+            { shipmentIndex: 3 },
+            { shipmentIndex: 5 },
+            { shipmentIndex: 6 },
+            { shipmentIndex: 9 },
+            { shipmentIndex: 7 },
+            { shipmentIndex: 8 },
+            { shipmentIndex: 10 },
+            { shipmentIndex: 11 },
+            { shipmentIndex: 12 },
+            { shipmentIndex: 13 },
+            { shipmentIndex: 14 },
+            { shipmentIndex: 15 },
+          ],
+        },
+      ],
+    },
+    stops,
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    stops.map((stop) => stop.id),
+  );
+  assert.equal(route.qualityFallback?.applied, true);
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.suspiciousJumpCount,
+    0,
+  );
+  assert(
+    (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
+      0) >= 0.86,
+  );
+  assert(
+    (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
+      1) < 0.9,
+  );
+  assert(
+    (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
+  );
+});
+
 test("route quality diagnostics stay clean for optimized first twenty sample stops", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,

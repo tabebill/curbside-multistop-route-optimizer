@@ -500,7 +500,7 @@ function isRouteQualityPoor(diagnostics: RouteQualityDiagnostics | undefined) {
   return (
     diagnostics.issueCount > 0 ||
     (diagnostics.nearestNeighborMissCount > 0 &&
-      diagnostics.nearestNeighborMatchRate < 0.86)
+      diagnostics.nearestNeighborMatchRate < 0.9)
   );
 }
 
@@ -529,7 +529,7 @@ function shouldUseFallbackRoute(
 
   const routeContinuity = routeDiagnostics?.nearestNeighborMatchRate ?? 1;
 
-  return fallbackDiagnostics.nearestNeighborMatchRate >= routeContinuity + 0.08;
+  return fallbackDiagnostics.nearestNeighborMatchRate >= routeContinuity + 0.04;
 }
 
 function buildSyntheticVisitOrder(
