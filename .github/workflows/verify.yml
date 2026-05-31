@@ -36,6 +36,18 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Run sample-address route verifier
+        run: npm run verify:sample-route
+
+      - name: Run shuffled sample-address route verifier
+        run: npm run verify:sample-shuffles
+
+      - name: Run selected-end sample-address route verifier
+        run: npm run verify:sample-shuffles:selected-end
+
+      - name: Run round-trip sample-address route verifier
+        run: npm run verify:sample-shuffles:round-trip
+
       - name: Run randomized route-shape verifier
         run: npm run verify:random-routes
 
