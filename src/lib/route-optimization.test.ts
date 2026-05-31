@@ -364,3 +364,26 @@ test("default route avoids quality-diagnostic jumps on mixed cluster input", () 
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
 });
+
+test("default route handles large synthetic imports without dropping stops", () => {
+  const stops: CoordinateStop[] = Array.from({ length: 1200 }, (_, index) => {
+    const row = Math.floor(index / 40);
+    const column = index % 40;
+
+    return {
+      id: `large-${index}`,
+      label: `${1000 + index} E LARGE ST TULSA 74103`,
+      latitude: 36 + row * 0.0004,
+      longitude: -96 + column * 0.0004,
+    };
+  });
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "large-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+
+  assert.equal(ordered.length, stops.length);
+  assert.equal(new Set(ordered.map((stop) => stop.id)).size, stops.length);
+});

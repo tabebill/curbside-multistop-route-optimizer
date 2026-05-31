@@ -406,12 +406,16 @@ function analyzeRouteQuality(
     .filter((leg): leg is NonNullable<typeof leg> => Boolean(leg));
   const legDistances = legs.map((leg) => leg.distanceMeters);
   const medianLegMeters = getMedian(legDistances);
+  const lookAheadLimit = visitOrder.length > 1000 ? 250 : visitOrder.length;
   const issues = legs.flatMap((leg, legIndex) => {
     if (leg.distanceMeters <= 805) {
       return [];
     }
 
-    const laterVisits = visitOrder.slice(legIndex + 2);
+    const laterVisits = visitOrder.slice(
+      legIndex + 2,
+      legIndex + 2 + lookAheadLimit,
+    );
     const nearerLaterStops = laterVisits
       .map((visit) => {
         const stop = getCoordinateForVisit(visit, stopsById, endpoints);
@@ -1101,13 +1105,14 @@ function orderDefaultRouteStops(
   const improvedCandidates = candidates.map((candidate) =>
     improveRoute(candidate, start, end),
   );
+  const scoredCandidates = improvedCandidates.map((candidate) => ({
+    candidate,
+    score: scoreRouteQualityAware(candidate, start, end),
+  }));
 
-  return improvedCandidates.reduce((best, candidate) =>
-    scoreRouteQualityAware(candidate, start, end) <
-    scoreRouteQualityAware(best, start, end)
-      ? candidate
-      : best,
-  );
+  return scoredCandidates.reduce((best, current) =>
+    current.score < best.score ? current : best,
+  ).candidate;
 }
 
 export function buildLocalOptimizedStopSequenceForTesting(options: {
