@@ -55,6 +55,11 @@ type GoogleOptimizeResponse = {
   validationErrors?: unknown[];
 };
 
+type LatLng = {
+  latitude: number;
+  longitude: number;
+};
+
 function isValidCoordinateStop(stop: CoordinateStop) {
   return (
     stop.id &&
@@ -236,6 +241,110 @@ function getDistance(
   return lat * lat + lng * lng;
 }
 
+function getHaversineMeters(
+  from: Pick<CoordinateStop, "latitude" | "longitude"> | undefined,
+  to: Pick<CoordinateStop, "latitude" | "longitude"> | undefined,
+) {
+  if (!from || !to) {
+    return 0;
+  }
+
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeA = toRadians(from.latitude);
+  const latitudeB = toRadians(to.latitude);
+  const latitudeDelta = toRadians(to.latitude - from.latitude);
+  const longitudeDelta = toRadians(to.longitude - from.longitude);
+  const value =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitudeA) *
+      Math.cos(latitudeB) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+function decodePolyline(points: string | undefined) {
+  if (!points) {
+    return [] satisfies LatLng[];
+  }
+
+  const coordinates: LatLng[] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+
+  while (index < points.length) {
+    let result = 0;
+    let shift = 0;
+    let byte = 0;
+
+    do {
+      byte = points.charCodeAt(index) - 63;
+      index += 1;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    latitude += result & 1 ? ~(result >> 1) : result >> 1;
+    result = 0;
+    shift = 0;
+
+    do {
+      byte = points.charCodeAt(index) - 63;
+      index += 1;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    longitude += result & 1 ? ~(result >> 1) : result >> 1;
+    coordinates.push({
+      latitude: latitude / 1e5,
+      longitude: longitude / 1e5,
+    });
+  }
+
+  return coordinates;
+}
+
+function getPathMeters(path: LatLng[]) {
+  return path.reduce((total, point, index) => {
+    if (!index) {
+      return total;
+    }
+
+    return total + getHaversineMeters(path[index - 1], point);
+  }, 0);
+}
+
+function getStopSequenceMeters(
+  visitOrder: Array<{ stopId: string }>,
+  stops: CoordinateStop[],
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+) {
+  const stopById = new Map(stops.map((stop) => [stop.id, stop]));
+  const path = visitOrder
+    .map((visit) =>
+      visit.stopId === endpoints?.start?.id
+        ? endpoints.start
+        : visit.stopId === endpoints?.end?.id
+          ? endpoints.end
+          : stopById.get(visit.stopId),
+    )
+    .filter((stop): stop is CoordinateStop => Boolean(stop));
+
+  return getPathMeters(path);
+}
+
+function estimateDurationSeconds(distanceMeters: number) {
+  const residentialMetersPerSecond = 8.94; // 20 mph, useful fallback for local delivery routes.
+
+  return distanceMeters ? Math.round(distanceMeters / residentialMetersPerSecond) : 0;
+}
+
 function scoreOrder(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -333,6 +442,68 @@ function orderNearestStops(
   }
 
   return ordered;
+}
+
+function reverseSegment<T>(items: T[], startIndex: number, endIndex: number) {
+  while (startIndex < endIndex) {
+    const item = items[startIndex];
+    items[startIndex] = items[endIndex];
+    items[endIndex] = item;
+    startIndex += 1;
+    endIndex -= 1;
+  }
+}
+
+function improveRouteWithTwoOpt(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 4) {
+    return ordered;
+  }
+
+  const best = [...ordered];
+  const maxPasses = ordered.length > 1000 ? 1 : 3;
+  const maxSpan = ordered.length > 1000 ? 80 : ordered.length;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let improved = false;
+
+    for (let left = 0; left < best.length - 2; left += 1) {
+      const maxRight = Math.min(best.length - 1, left + maxSpan);
+
+      for (let right = left + 2; right <= maxRight; right += 1) {
+        const before = left === 0 ? start : best[left - 1];
+        const first = best[left];
+        const last = best[right];
+        const after = right === best.length - 1 ? end : best[right + 1];
+        const currentCost =
+          getDistance(before, first) + getDistance(last, after);
+        const candidateCost =
+          getDistance(before, last) + getDistance(first, after);
+
+        if (candidateCost + Number.EPSILON < currentCost) {
+          reverseSegment(best, left, right);
+          improved = true;
+        }
+      }
+    }
+
+    if (!improved) {
+      break;
+    }
+  }
+
+  return best;
+}
+
+function orderDefaultRouteStops(
+  stops: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  return improveRouteWithTwoOpt(orderNearestStops(stops, start), start, end);
 }
 
 function orderCurbsideStops(
@@ -464,7 +635,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
   const shipmentStops = usesNearestSequenceRoute
-    ? orderNearestStops(unorderedShipmentStops, start)
+    ? orderDefaultRouteStops(unorderedShipmentStops, start, end)
     : usesStrictCurbsideSequence
       ? orderCurbsideStops(unorderedShipmentStops, start)
       : unorderedShipmentStops;
@@ -587,19 +758,29 @@ export function normalizeOptimizeToursResponse(
         ]
       : []),
   ];
+  const polylineDistanceMeters = Math.round(
+    getPathMeters(decodePolyline(route?.routePolyline?.points)),
+  );
+  const sequenceDistanceMeters = Math.round(
+    getStopSequenceMeters(visitOrder, shipmentStops, endpoints),
+  );
+  const distanceMeters = [
+    routeMetrics?.travelDistanceMeters ??
+      responseMetrics?.travelDistanceMeters,
+    polylineDistanceMeters,
+    sequenceDistanceMeters,
+  ].find((value) => value !== undefined && value > 0) ?? 0;
+  const durationSeconds = parseGoogleDuration(
+    routeMetrics?.travelDuration ??
+      routeMetrics?.totalDuration ??
+      responseMetrics?.travelDuration ??
+      responseMetrics?.totalDuration,
+  );
 
   return {
     visitOrder,
-    distanceMeters:
-      routeMetrics?.travelDistanceMeters ??
-      responseMetrics?.travelDistanceMeters ??
-      0,
-    durationSeconds: parseGoogleDuration(
-      routeMetrics?.travelDuration ??
-        routeMetrics?.totalDuration ??
-        responseMetrics?.travelDuration ??
-        responseMetrics?.totalDuration,
-    ),
+    distanceMeters,
+    durationSeconds: durationSeconds || estimateDurationSeconds(distanceMeters),
     polyline: route?.routePolyline?.points,
     skippedShipmentCount:
       data.skippedShipments?.length ??
