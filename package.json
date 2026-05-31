@@ -16,6 +16,7 @@
     "verify:sample-shuffles:selected-end": "ROUTE_SAMPLE_END_MODE=selected_stop tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-shuffles:round-trip": "ROUTE_SAMPLE_END_MODE=round_trip tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-ui": "tsx scripts/verify-sample-ui.ts",
+    "verify:random-routes": "tsx scripts/verify-random-route-shapes.ts",
     "test": "tsx --test src/**/*.test.ts",
     "start": "next start",
     "lint": "eslint"

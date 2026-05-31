@@ -36,6 +36,9 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Run randomized route-shape verifier
+        run: npm run verify:random-routes
+
       - name: Run 5,000-stop route benchmarks
         run: npm run benchmark:routes:5000:all
 
