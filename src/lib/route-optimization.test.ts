@@ -166,7 +166,7 @@ test("default route matches real sample-address first thirty neighborhood progre
   });
 
   assert.deepEqual(inputOrders(ordered, firstThirtySampleStops), [
-    1, 2, 3, 4, 5, 7, 6, 8, 9, 13, 10, 11, 12, 20, 14, 15, 25, 24, 21, 19,
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 10, 11, 12, 20, 14, 15, 25, 24, 21, 19,
     18, 17, 28, 16, 22, 23, 26, 27, 29, 30,
   ]);
   assert.equal(getRouteDiagnostics(ordered)?.suspiciousJumpCount, 0);
@@ -674,6 +674,7 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
   assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
+  assert.equal(route.qualityDiagnostics?.streetFaceBacktrackCount, 0);
   assert(
     (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
   );
@@ -727,6 +728,41 @@ test("quality fallback rejects same-street side reentry", () => {
     2,
   );
   assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
+  assert.equal(route.qualityFallback?.applied, true);
+});
+
+test("quality fallback rejects same-curb house-number backtracking", () => {
+  const stops: CoordinateStop[] = [
+    { id: "100", label: "100 E ORDER ST TULSA 74103", latitude: 36, longitude: -96 },
+    { id: "102", label: "102 E ORDER ST TULSA 74103", latitude: 36, longitude: -95.9998 },
+    { id: "104", label: "104 E ORDER ST TULSA 74103", latitude: 36, longitude: -95.9996 },
+    { id: "106", label: "106 E ORDER ST TULSA 74103", latitude: 36, longitude: -95.9994 },
+  ];
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 2 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 3 },
+          ],
+        },
+      ],
+    },
+    stops,
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    ["100", "102", "104", "106"],
+  );
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.streetFaceBacktrackCount,
+    1,
+  );
+  assert.equal(route.qualityDiagnostics?.streetFaceBacktrackCount, 0);
   assert.equal(route.qualityFallback?.applied, true);
 });
 

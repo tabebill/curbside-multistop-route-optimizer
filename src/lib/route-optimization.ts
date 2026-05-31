@@ -492,6 +492,7 @@ function analyzeRouteQuality(
     nearestNeighborMatchCount,
     nearestNeighborMissCount,
     streetFaceReentryCount: getStreetFaceReentryCount(orderedStops),
+    streetFaceBacktrackCount: getStreetFaceBacktrackCount(orderedStops),
     issues,
   };
 }
@@ -504,6 +505,7 @@ function isRouteQualityPoor(diagnostics: RouteQualityDiagnostics | undefined) {
   return (
     diagnostics.issueCount > 0 ||
     (diagnostics.streetFaceReentryCount ?? 0) > 0 ||
+    (diagnostics.streetFaceBacktrackCount ?? 0) > 0 ||
     (diagnostics.nearestNeighborMissCount > 0 &&
       diagnostics.nearestNeighborMatchRate < 0.9)
   );
@@ -525,6 +527,9 @@ function shouldUseFallbackRoute(
   const fallbackIssues = fallbackDiagnostics.issueCount;
   const routeFaceReentries = routeDiagnostics?.streetFaceReentryCount ?? 0;
   const fallbackFaceReentries = fallbackDiagnostics.streetFaceReentryCount ?? 0;
+  const routeFaceBacktracks = routeDiagnostics?.streetFaceBacktrackCount ?? 0;
+  const fallbackFaceBacktracks =
+    fallbackDiagnostics.streetFaceBacktrackCount ?? 0;
 
   if (fallbackIssues < routeIssues) {
     return true;
@@ -542,6 +547,14 @@ function shouldUseFallbackRoute(
     return false;
   }
 
+  if (fallbackFaceBacktracks < routeFaceBacktracks) {
+    return true;
+  }
+
+  if (fallbackFaceBacktracks > routeFaceBacktracks) {
+    return false;
+  }
+
   const routeContinuity = routeDiagnostics?.nearestNeighborMatchRate ?? 1;
 
   return fallbackDiagnostics.nearestNeighborMatchRate >= routeContinuity + 0.04;
@@ -554,6 +567,8 @@ function getRouteQualitySortValue(route: OptimizedRoute) {
     issueCount: diagnostics?.issueCount ?? Number.POSITIVE_INFINITY,
     streetFaceReentryCount:
       diagnostics?.streetFaceReentryCount ?? Number.POSITIVE_INFINITY,
+    streetFaceBacktrackCount:
+      diagnostics?.streetFaceBacktrackCount ?? Number.POSITIVE_INFINITY,
     continuity: diagnostics?.nearestNeighborMatchRate ?? 0,
     distanceMeters: route.distanceMeters || Number.POSITIVE_INFINITY,
   };
@@ -574,6 +589,16 @@ function chooseBestQualityRoute(routes: OptimizedRoute[]) {
     ) {
       return currentQuality.streetFaceReentryCount <
         bestQuality.streetFaceReentryCount
+        ? current
+        : best;
+    }
+
+    if (
+      currentQuality.streetFaceBacktrackCount !==
+      bestQuality.streetFaceBacktrackCount
+    ) {
+      return currentQuality.streetFaceBacktrackCount <
+        bestQuality.streetFaceBacktrackCount
         ? current
         : best;
     }
@@ -651,7 +676,8 @@ function scoreRouteQualityAware(
       ? 0
       : getNearestNeighborMissPenaltyMeters(ordered, start, end) * 2) +
     getStreetReentryPenaltyMeters(ordered) +
-    getStreetFaceReentryPenaltyMeters(ordered)
+    getStreetFaceReentryPenaltyMeters(ordered) +
+    getStreetFaceBacktrackPenaltyMeters(ordered)
   );
 }
 
@@ -758,6 +784,47 @@ function getStreetFaceReentryCount(ordered: CoordinateStop[]) {
   }
 
   return penalty;
+}
+
+function getStreetFaceBacktrackPenaltyMeters(ordered: CoordinateStop[]) {
+  return getStreetFaceBacktrackCount(ordered) * 350;
+}
+
+function getStreetFaceBacktrackCount(ordered: CoordinateStop[]) {
+  let count = 0;
+  let previous: ParsedStreetStop | undefined;
+  let direction = 0;
+
+  for (const stop of ordered) {
+    const parsed = parseStreetStop(stop);
+
+    if (
+      !parsed ||
+      !previous ||
+      parsed.streetKey !== previous.streetKey ||
+      parsed.side !== previous.side
+    ) {
+      previous = parsed;
+      direction = 0;
+      continue;
+    }
+
+    const delta = parsed.houseNumber - previous.houseNumber;
+
+    if (delta !== 0) {
+      const nextDirection = Math.sign(delta);
+
+      if (direction && nextDirection !== direction) {
+        count += 1;
+      }
+
+      direction = direction || nextDirection;
+    }
+
+    previous = parsed;
+  }
+
+  return count;
 }
 
 function getNearestNeighborMissPenaltyMeters(

@@ -76,6 +76,7 @@ export type RouteQualityDiagnostics = {
   nearestNeighborMatchCount: number;
   nearestNeighborMissCount: number;
   streetFaceReentryCount?: number;
+  streetFaceBacktrackCount?: number;
   issues: RouteQualityIssue[];
 };
 
