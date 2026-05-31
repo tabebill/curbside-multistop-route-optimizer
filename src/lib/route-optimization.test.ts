@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildOptimizeToursPayload,
   buildLocalOptimizedStopSequenceForTesting,
   normalizeOptimizeToursResponse,
 } from "@/lib/route-optimization";
@@ -282,6 +283,30 @@ test("default route keeps parsed street groups contiguous before returning to an
   assert.equal(Math.max(...oakIndexes) - Math.min(...oakIndexes), oakIndexes.length - 1);
 });
 
+test("curbside strict splits distant segments on the same named street", () => {
+  const stops: CoordinateStop[] = [
+    { id: "main-near-100", label: "100 E MAIN ST TULSA 74103", latitude: 36, longitude: -96 },
+    { id: "main-near-102", label: "102 E MAIN ST TULSA 74103", latitude: 36.0001, longitude: -96 },
+    { id: "oak-near-200", label: "200 E OAK ST TULSA 74103", latitude: 36.00015, longitude: -96.00015 },
+    { id: "oak-near-202", label: "202 E OAK ST TULSA 74103", latitude: 36.00025, longitude: -96.00015 },
+    { id: "main-far-1000", label: "1000 E MAIN ST TULSA 74103", latitude: 36.02, longitude: -96.02 },
+    { id: "main-far-1002", label: "1002 E MAIN ST TULSA 74103", latitude: 36.0201, longitude: -96.02 },
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "main-near-100",
+    endMode: "last_stop",
+    routeOptimizationMode: "curbside_strict",
+  });
+  const oakIndex = ordered.findIndex((stop) => stop.id === "oak-near-200");
+  const farMainIndex = ordered.findIndex((stop) => stop.id === "main-far-1000");
+
+  assert(
+    oakIndex > 0 && oakIndex < farMainIndex,
+    "nearby streets should be routed before a distant segment with the same street name",
+  );
+});
+
 test("2-opt improvement does not make a nearest-next route worse", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "Start", latitude: 0, longitude: 0 },
@@ -358,6 +383,40 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+});
+
+test("google optimized payload seeds Google but still asks Google to solve", () => {
+  const payload = buildOptimizeToursPayload({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  }) as Record<string, unknown>;
+
+  assert.equal(payload.solvingMode, "DEFAULT_SOLVE");
+  assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
+  assert(!("refreshDetailsRoutes" in payload));
+  assert(Array.isArray(payload.injectedFirstSolutionRoutes));
+  assert.equal(
+    (payload.injectedFirstSolutionRoutes as Array<{ visits?: unknown[] }>)[0]
+      .visits?.length,
+    firstTwentySampleStops.length - 1,
+  );
+});
+
+test("validation payload does not lock Google to an injected solve route", () => {
+  const payload = buildOptimizeToursPayload({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+    validateOnly: true,
+  }) as Record<string, unknown>;
+
+  assert.equal(payload.solvingMode, "VALIDATE_ONLY");
+  assert.equal(payload.searchMode, "RETURN_FAST");
+  assert(!("refreshDetailsRoutes" in payload));
+  assert(!("injectedFirstSolutionRoutes" in payload));
 });
 
 test("default route avoids quality-diagnostic jumps on mixed cluster input", () => {

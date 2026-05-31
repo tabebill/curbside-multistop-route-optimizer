@@ -650,6 +650,43 @@ function getNearestGroupDistance(
   }, Number.POSITIVE_INFINITY);
 }
 
+function splitStreetGroupByNearbySegments(group: ParsedStreetStop[]) {
+  if (group.length < 3) {
+    return [group];
+  }
+
+  const sorted = [...group].sort((a, b) => a.houseNumber - b.houseNumber);
+  const segments: ParsedStreetStop[][] = [];
+  let currentSegment: ParsedStreetStop[] = [];
+  let previous: ParsedStreetStop | undefined;
+
+  for (const item of sorted) {
+    const coordinateGapMeters = previous
+      ? getHaversineMeters(previous.stop, item.stop)
+      : 0;
+    const houseNumberGap = previous
+      ? Math.abs(item.houseNumber - previous.houseNumber)
+      : 0;
+    const startsNewSegment =
+      previous &&
+      (coordinateGapMeters > 420 || houseNumberGap > 420);
+
+    if (startsNewSegment) {
+      segments.push(currentSegment);
+      currentSegment = [];
+    }
+
+    currentSegment.push(item);
+    previous = item;
+  }
+
+  if (currentSegment.length) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
+}
+
 function orderNearestStops(
   stops: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -1294,7 +1331,7 @@ function orderCurbsideStops(
     ]);
   }
 
-  const groups = [...parsedGroups.values()];
+  const groups = [...parsedGroups.values()].flatMap(splitStreetGroupByNearbySegments);
   const ordered: CoordinateStop[] = [];
   let cursor = start;
 
@@ -1366,7 +1403,7 @@ function getInjectedSolutionConstraint(
   };
 }
 
-function getRefreshDetailsRoute(
+function getSeedSolutionRoute(
   shipmentStops: CoordinateStop[],
   startTime: Date,
   endTime: Date,
@@ -1391,7 +1428,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
   const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
-  const usesNearestSequenceRoute =
+  const usesSeededGoogleSolve =
     routeOptimizationMode === "google_optimized" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
@@ -1401,7 +1438,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesNearestSequenceRoute
+  const shipmentStops = usesSeededGoogleSolve
     ? orderDefaultRouteStops(unorderedShipmentStops, start, end)
     : usesStrictCurbsideSequence
       ? orderCurbsideStops(unorderedShipmentStops, start)
@@ -1414,22 +1451,21 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
-  const refreshDetailsRoute = usesNearestSequenceRoute
-    ? getRefreshDetailsRoute(shipmentStops, tomorrow, endTime)
+  const injectedFirstSolutionRoute = usesSeededGoogleSolve
+    ? getSeedSolutionRoute(shipmentStops, tomorrow, endTime)
     : undefined;
 
   const payload = {
     timeout: options.validateOnly ? "5s" : "20s",
-    ...(refreshDetailsRoute
-      ? { refreshDetailsRoutes: [refreshDetailsRoute] }
-      : {
-          solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
-          searchMode: options.validateOnly
-            ? "RETURN_FAST"
-            : "CONSUME_ALL_AVAILABLE_TIME",
-        }),
+    solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
+    searchMode: options.validateOnly
+      ? "RETURN_FAST"
+      : "CONSUME_ALL_AVAILABLE_TIME",
     populatePolylines: !options.validateOnly,
     populateTransitionPolylines: !options.validateOnly,
+    ...(injectedFirstSolutionRoute
+      ? { injectedFirstSolutionRoutes: [injectedFirstSolutionRoute] }
+      : {}),
     ...(injectedSolutionConstraint ? { injectedSolutionConstraint } : {}),
     model: {
       shipments: shipmentStops.map((stop) => ({
