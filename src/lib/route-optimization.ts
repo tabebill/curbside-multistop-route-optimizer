@@ -656,6 +656,15 @@ function scoreRouteQualityAware(
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
+  if (ordered.length > 1000) {
+    return (
+      scoreRouteMeters(ordered, start, end) +
+      getStreetReentryPenaltyMeters(ordered) +
+      getStreetFaceReentryPenaltyMeters(ordered) +
+      getStreetFaceBacktrackPenaltyMeters(ordered)
+    );
+  }
+
   const diagnostics = analyzeRouteQuality(
     buildSyntheticVisitOrder(ordered, start, end),
     ordered,
@@ -674,9 +683,7 @@ function scoreRouteQualityAware(
   return (
     scoreRouteMeters(ordered, start, end) +
     jumpPenalty * 3 +
-    (ordered.length > 1000
-      ? 0
-      : getNearestNeighborMissPenaltyMeters(ordered, start, end) * 2) +
+    getNearestNeighborMissPenaltyMeters(ordered, start, end) * 2 +
     getStreetReentryPenaltyMeters(ordered) +
     getStreetFaceReentryPenaltyMeters(ordered) +
     getStreetFaceBacktrackPenaltyMeters(ordered)
@@ -1495,12 +1502,8 @@ function repairStreetFaceBacktracking(
 
   for (const run of getStreetFaceRuns(best)) {
     const currentRun = best.slice(run.startIndex, run.endIndex);
-    const diagnostics = analyzeRouteQuality(
-      buildSyntheticVisitOrder(currentRun, undefined, undefined),
-      currentRun,
-    );
 
-    if (!diagnostics.streetFaceBacktrackCount) {
+    if (!getStreetFaceBacktrackCount(currentRun)) {
       continue;
     }
 
