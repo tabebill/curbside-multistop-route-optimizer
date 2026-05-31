@@ -38,3 +38,6 @@ jobs:
 
       - name: Run 5,000-stop route benchmarks
         run: npm run benchmark:routes:5000:all
+
+      - name: Run shuffled 5,000-stop route benchmark
+        run: npm run benchmark:routes:5000:shuffles
