@@ -492,6 +492,46 @@ function analyzeRouteQuality(
   };
 }
 
+function isRouteQualityPoor(diagnostics: RouteQualityDiagnostics | undefined) {
+  if (!diagnostics) {
+    return false;
+  }
+
+  return (
+    diagnostics.issueCount > 0 ||
+    (diagnostics.nearestNeighborMissCount > 0 &&
+      diagnostics.nearestNeighborMatchRate < 0.86)
+  );
+}
+
+function shouldUseFallbackRoute(
+  routeDiagnostics: RouteQualityDiagnostics | undefined,
+  fallbackDiagnostics: RouteQualityDiagnostics | undefined,
+) {
+  if (!isRouteQualityPoor(routeDiagnostics)) {
+    return false;
+  }
+
+  if (!fallbackDiagnostics) {
+    return false;
+  }
+
+  const routeIssues = routeDiagnostics?.issueCount ?? 0;
+  const fallbackIssues = fallbackDiagnostics.issueCount;
+
+  if (fallbackIssues < routeIssues) {
+    return true;
+  }
+
+  if (fallbackIssues > routeIssues) {
+    return false;
+  }
+
+  const routeContinuity = routeDiagnostics?.nearestNeighborMatchRate ?? 1;
+
+  return fallbackDiagnostics.nearestNeighborMatchRate >= routeContinuity + 0.08;
+}
+
 function buildSyntheticVisitOrder(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -1775,9 +1815,8 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
   },
 ) {
   const route = normalizeOptimizeToursResponse(rawData, shipmentStops, endpoints);
-  const issueCount = route.qualityDiagnostics?.issueCount ?? 0;
 
-  if (!issueCount) {
+  if (!isRouteQualityPoor(route.qualityDiagnostics)) {
     return route;
   }
 
@@ -1794,14 +1833,18 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     shipmentStops,
     endpoints,
   );
-  const fallbackIssueCount = fallbackRoute.qualityDiagnostics?.issueCount ?? 0;
 
-  if (fallbackIssueCount >= issueCount) {
+  if (
+    !shouldUseFallbackRoute(
+      route.qualityDiagnostics,
+      fallbackRoute.qualityDiagnostics,
+    )
+  ) {
     return route;
   }
 
   const fallbackMessage =
-    "Google returned a route with suspicious skipped-nearby stops; using the seeded local order instead.";
+    "Google returned a route with scattered nearby stops; using the seeded local order instead.";
 
   return {
     ...fallbackRoute,

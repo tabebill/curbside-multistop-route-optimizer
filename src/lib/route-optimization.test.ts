@@ -470,6 +470,45 @@ test("quality fallback replaces suspicious Google order with seeded local order"
   assert.equal(route.validationErrors.length, 1);
 });
 
+test("quality fallback rejects compact but scattered Google numbering", () => {
+  const stops: CoordinateStop[] = [
+    { id: "a1", label: "100 E A ST TULSA 74103", latitude: 36, longitude: -96 },
+    { id: "a2", label: "102 E A ST TULSA 74103", latitude: 36.0001, longitude: -96 },
+    { id: "a3", label: "104 E A ST TULSA 74103", latitude: 36.0002, longitude: -96 },
+    { id: "b1", label: "200 E B ST TULSA 74103", latitude: 36.001, longitude: -96 },
+    { id: "b2", label: "202 E B ST TULSA 74103", latitude: 36.0011, longitude: -96 },
+    { id: "b3", label: "204 E B ST TULSA 74103", latitude: 36.0012, longitude: -96 },
+  ];
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 3 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 4 },
+            { shipmentIndex: 2 },
+            { shipmentIndex: 5 },
+          ],
+        },
+      ],
+    },
+    stops,
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    ["a1", "a2", "a3", "b1", "b2", "b3"],
+  );
+  assert.equal(route.qualityFallback?.applied, true);
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert(
+    (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
+      1) < 0.86,
+  );
+});
+
 test("route quality diagnostics stay clean for optimized first twenty sample stops", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
