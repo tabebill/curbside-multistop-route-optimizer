@@ -301,14 +301,15 @@ function orderStreetGroup(
   );
 }
 
-function getCentroid(stops: ParsedStreetStop[]) {
-  return stops.reduce(
-    (center, item) => ({
-      latitude: center.latitude + item.stop.latitude / stops.length,
-      longitude: center.longitude + item.stop.longitude / stops.length,
-    }),
-    { latitude: 0, longitude: 0 },
-  );
+function getNearestGroupDistance(
+  cursor: CoordinateStop | undefined,
+  group: ParsedStreetStop[],
+) {
+  return group.reduce((nearest, item) => {
+    const distance = getDistance(cursor, item.stop);
+
+    return distance < nearest ? distance : nearest;
+  }, Number.POSITIVE_INFINITY);
 }
 
 function orderCurbsideStops(
@@ -340,8 +341,8 @@ function orderCurbsideStops(
     const nextGroupIndex = groups.reduce((bestIndex, group, index) => {
       const best = groups[bestIndex];
 
-      return getDistance(cursor, getCentroid(group)) <
-        getDistance(cursor, getCentroid(best))
+      return getNearestGroupDistance(cursor, group) <
+        getNearestGroupDistance(cursor, best)
         ? index
         : bestIndex;
     }, 0);
