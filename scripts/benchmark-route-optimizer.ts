@@ -11,6 +11,12 @@ function getStopCount() {
   return Number.isFinite(value) && value > 1 ? Math.round(value) : 2000;
 }
 
+function getMaxSuspiciousJumps() {
+  const value = Number(process.env.ROUTE_BENCHMARK_MAX_SUSPICIOUS_JUMPS ?? 0);
+
+  return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+}
+
 function buildSyntheticStops(count: number): CoordinateStop[] {
   const columns = Math.ceil(Math.sqrt(count));
 
@@ -30,6 +36,7 @@ function buildSyntheticStops(count: number): CoordinateStop[] {
 }
 
 const stopCount = getStopCount();
+const maxSuspiciousJumps = getMaxSuspiciousJumps();
 const stops = buildSyntheticStops(stopCount);
 const startedAt = performance.now();
 const ordered = buildLocalOptimizedStopSequenceForTesting({
@@ -51,22 +58,30 @@ const route = normalizeOptimizeToursResponse(
   shipmentStops,
   { start: ordered[0] },
 );
+const uniqueStops = new Set(ordered.map((stop) => stop.id)).size;
+const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+const result = {
+  requestedStops: stopCount,
+  orderedStops: ordered.length,
+  uniqueStops,
+  elapsedMs: Math.round(elapsedMs),
+  suspiciousJumps,
+  maxSuspiciousJumps,
+  longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
+  medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
+  issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
+  firstTen: ordered.slice(0, 10).map((stop) => stop.id),
+  lastTen: ordered.slice(-10).map((stop) => stop.id),
+};
 
-console.log(
-  JSON.stringify(
-    {
-      requestedStops: stopCount,
-      orderedStops: ordered.length,
-      uniqueStops: new Set(ordered.map((stop) => stop.id)).size,
-      elapsedMs: Math.round(elapsedMs),
-      suspiciousJumps: route.qualityDiagnostics?.suspiciousJumpCount ?? 0,
-      longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
-      medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
-      issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
-      firstTen: ordered.slice(0, 10).map((stop) => stop.id),
-      lastTen: ordered.slice(-10).map((stop) => stop.id),
-    },
-    null,
-    2,
-  ),
-);
+console.log(JSON.stringify(result, null, 2));
+
+if (ordered.length !== stopCount || uniqueStops !== stopCount) {
+  console.error("Route benchmark failed: ordered stops are missing or duplicated.");
+  process.exitCode = 1;
+}
+
+if (suspiciousJumps > maxSuspiciousJumps) {
+  console.error("Route benchmark failed: suspicious jump count exceeded threshold.");
+  process.exitCode = 1;
+}
