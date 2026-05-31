@@ -44,9 +44,11 @@ function getShuffleCount() {
 function getRouteOptimizationMode(): RouteOptimizationMode {
   const value = process.env.ROUTE_BENCHMARK_MODE;
 
-  return value === "curbside_assisted" || value === "curbside_strict"
+  return value === "auto" ||
+    value === "curbside_assisted" ||
+    value === "curbside_strict"
     ? value
-    : "google_optimized";
+    : "auto";
 }
 
 function getEndMode(): EndMode {

@@ -459,7 +459,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const [routeName, setRouteName] = useState("Untitled route");
   const [routeOptimizationMode, setRouteOptimizationMode] =
-    useState<RouteOptimizationMode>("google_optimized");
+    useState<RouteOptimizationMode>("auto");
   const [startMode, setStartMode] = useState<StartMode>("route_stop");
   const [endMode, setEndMode] = useState<EndMode>("last_stop");
   const [startStopId, setStartStopId] = useState("");
@@ -510,7 +510,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           setRouteName(parsed.routeName || "Untitled route");
           setRouteOptimizationMode(
             parsed.routeOptimizationMode ??
-              (parsed.curbsideRouting ? "curbside_strict" : "google_optimized"),
+              (parsed.curbsideRouting ? "curbside_strict" : "auto"),
           );
           setStartMode(parsed.startMode || "route_stop");
           setEndMode(shouldMigrateRoundTrip ? "last_stop" : parsed.endMode);
@@ -1537,8 +1537,9 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                 <span className="mb-2 block text-sm font-medium">
                   Optimization
                 </span>
-                <div className="grid grid-cols-1 rounded-md border border-line bg-panel-subtle p-1 sm:grid-cols-3">
+                <div className="grid grid-cols-2 rounded-md border border-line bg-panel-subtle p-1 sm:grid-cols-4">
                   {[
+                    ["auto", "Auto"],
                     ["google_optimized", "Google"],
                     ["curbside_assisted", "Curbside"],
                     ["curbside_strict", "Strict"],

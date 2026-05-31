@@ -13,6 +13,9 @@ Use `main` if you want a safe, no-setup demo. Use `production` if you want geoco
 
 ## Route Optimization Modes
 
+- `Auto`: default mode. Seeds Google with the app's best local order, asks for
+  side-of-road handling, then quality-checks Google, repaired, and curbside
+  candidate routes before returning the safest sequence.
 - `Google`: lets Google Route Optimization choose the global visit order. Use this when shortest/fastest routing matters most.
 - `Curbside`: lets Google choose the global order while asking for side-of-road waypoint handling.
 - `Strict`: forces the app's street-sweep order before calling Google. Use only when same-curb delivery order matters more than global shortest route.

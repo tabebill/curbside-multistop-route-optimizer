@@ -141,7 +141,7 @@ function getRouteWindowHours(shipmentCount: number) {
 
 function getRouteOptimizationMode(options: OptimizeRequestOptions) {
   return options.routeOptimizationMode ??
-    (options.curbsideRouting ? "curbside_strict" : "google_optimized");
+    (options.curbsideRouting ? "curbside_strict" : "auto");
 }
 
 function normalizeStreetToken(token: string) {
@@ -2175,7 +2175,7 @@ export function buildLocalOptimizedStopSequenceForTesting(options: {
   const routeOptimizationMode =
     options.routeOptimizationMode ?? "google_optimized";
   const orderedStops =
-    routeOptimizationMode === "google_optimized"
+    routeOptimizationMode === "google_optimized" || routeOptimizationMode === "auto"
       ? orderDefaultRouteStops(shipmentStops, start, end)
       : routeOptimizationMode === "curbside_strict" ||
           routeOptimizationMode === "curbside_assisted"
@@ -2553,8 +2553,9 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
   },
 ) {
   const route = normalizeOptimizeToursResponse(rawData, shipmentStops, endpoints);
+  const routeOptimizationMode = options?.routeOptimizationMode ?? "auto";
   const seededStops =
-    options?.routeOptimizationMode === "curbside_strict"
+    routeOptimizationMode === "curbside_strict"
       ? orderCurbsideStops(shipmentStops, endpoints?.start)
       : shipmentStops;
   const seededRoute = buildRouteFromOrderedStops(
@@ -2564,7 +2565,7 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     endpoints,
   );
 
-  if (options?.routeOptimizationMode === "curbside_strict") {
+  if (routeOptimizationMode === "curbside_strict") {
     const returnedStopIds = route.visitOrder
       .filter((visit) => visit.role !== "start" && visit.role !== "end")
       .map((visit) => visit.stopId)
@@ -2597,22 +2598,50 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     };
   }
 
-  if (!isRouteQualityPoor(route.qualityDiagnostics)) {
-    return route;
-  }
-
   const repairedRoute = buildRepairedRouteFromReturnedOrder(
     route,
     shipmentStops,
     endpoints,
   );
+  const curbsideRoute =
+    routeOptimizationMode === "auto" ||
+    routeOptimizationMode === "curbside_assisted"
+      ? buildRouteFromOrderedStops(
+          orderCurbsideStops(shipmentStops, endpoints?.start),
+          shipmentStops,
+          route,
+          endpoints,
+        )
+      : undefined;
   const fallbackRoute = chooseBestQualityRoute(
-    [seededRoute, repairedRoute].filter(
+    [seededRoute, repairedRoute, curbsideRoute].filter(
       (candidate): candidate is OptimizedRoute => Boolean(candidate),
     ),
   );
 
+  let shouldPreferAutoFallback = false;
+
+  if (!isRouteQualityPoor(route.qualityDiagnostics)) {
+    const fallbackDiagnostics = fallbackRoute.qualityDiagnostics;
+    const routeFaceReentries = route.qualityDiagnostics?.streetFaceReentryCount ?? 0;
+    const fallbackFaceReentries = fallbackDiagnostics?.streetFaceReentryCount ?? 0;
+    const routeFaceBacktracks = route.qualityDiagnostics?.streetFaceBacktrackCount ?? 0;
+    const fallbackFaceBacktracks =
+      fallbackDiagnostics?.streetFaceBacktrackCount ?? 0;
+
+    shouldPreferAutoFallback =
+      routeOptimizationMode === "auto" &&
+      Boolean(fallbackDiagnostics) &&
+      (fallbackFaceReentries < routeFaceReentries ||
+        fallbackFaceBacktracks < routeFaceBacktracks);
+
+    if (!shouldPreferAutoFallback) {
+      return route;
+    }
+  }
+
   if (
+    !shouldPreferAutoFallback &&
     !shouldUseFallbackRoute(
       route.qualityDiagnostics,
       fallbackRoute.qualityDiagnostics,

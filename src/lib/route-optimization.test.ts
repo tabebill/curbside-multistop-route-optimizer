@@ -855,6 +855,64 @@ test("quality fallback rejects same-curb house-number backtracking", () => {
   assert.equal(route.qualityFallback?.applied, true);
 });
 
+test("auto fallback repairs scattered street-face route returns", () => {
+  const shipmentStops = firstTwentySampleStops.slice(1);
+  const shipmentIndexById = new Map(
+    shipmentStops.map((stop, shipmentIndex) => [stop.id, shipmentIndex]),
+  );
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            "2",
+            "3",
+            "4",
+            "11",
+            "6",
+            "5",
+            "7",
+            "8",
+            "9",
+            "13",
+            "10",
+            "12",
+            "20",
+            "14",
+            "15",
+            "19",
+            "16",
+            "18",
+            "17",
+          ].map((stopId) => ({
+            shipmentIndex: shipmentIndexById.get(stopId),
+          })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: firstTwentySampleStops[0] },
+    { routeOptimizationMode: "auto" },
+  );
+  const expected = buildLocalOptimizedStopSequenceForTesting({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "auto",
+  }).map((stop) => stop.id);
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    expected,
+  );
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.streetFaceReentryCount,
+    2,
+  );
+  assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
+  assert.equal(route.qualityFallback?.applied, true);
+});
+
 test("google optimized payload seeds Google but still asks Google to solve", () => {
   const payload = buildOptimizeToursPayload({
     stops: firstTwentySampleStops,
@@ -871,6 +929,34 @@ test("google optimized payload seeds Google but still asks Google to solve", () 
     (payload.injectedFirstSolutionRoutes as Array<{ visits?: unknown[] }>)[0]
       .visits?.length,
     firstTwentySampleStops.length - 1,
+  );
+});
+
+test("auto payload uses side-of-road waypoints with a seeded solve", () => {
+  const payload = buildOptimizeToursPayload({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "auto",
+  }) as {
+    solvingMode?: string;
+    searchMode?: string;
+    injectedFirstSolutionRoutes?: unknown[];
+    injectedSolutionConstraint?: unknown;
+    model?: {
+      shipments?: Array<{
+        deliveries?: Array<{ arrivalWaypoint?: { sideOfRoad?: boolean } }>;
+      }>;
+    };
+  };
+
+  assert.equal(payload.solvingMode, "DEFAULT_SOLVE");
+  assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
+  assert(Array.isArray(payload.injectedFirstSolutionRoutes));
+  assert.equal(payload.injectedSolutionConstraint, undefined);
+  assert.equal(
+    payload.model?.shipments?.[0]?.deliveries?.[0]?.arrivalWaypoint?.sideOfRoad,
+    true,
   );
 });
 

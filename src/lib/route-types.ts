@@ -5,6 +5,7 @@ export type StopStatus = "valid" | "needs_address_validation" | "invalid";
 export type EndMode = "round_trip" | "last_stop" | "selected_stop";
 
 export type RouteOptimizationMode =
+  | "auto"
   | "google_optimized"
   | "curbside_assisted"
   | "curbside_strict";
