@@ -121,7 +121,7 @@ For optimizer-specific checks, run:
 ```bash
 npm test
 npm run benchmark:routes
-ROUTE_BENCHMARK_STOPS=5000 npm run benchmark:routes
+npm run benchmark:routes:5000
 ```
 
 The benchmark uses deterministic synthetic stops and reports stop preservation,
