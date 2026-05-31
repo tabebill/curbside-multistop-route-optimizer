@@ -455,6 +455,67 @@ function analyzeRouteQuality(
   };
 }
 
+function buildSyntheticVisitOrder(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  return [
+    ...(start
+      ? [
+          {
+            stopId: start.id,
+            label: start.label,
+            sequence: 1,
+            shipmentIndex: -1,
+            role: "start" as const,
+          },
+        ]
+      : []),
+    ...ordered.map((stop, index) => ({
+      stopId: stop.id,
+      label: stop.label,
+      sequence: index + (start ? 2 : 1),
+      shipmentIndex: index,
+      role: "stop" as const,
+    })),
+    ...(end && end.id !== start?.id
+      ? [
+          {
+            stopId: end.id,
+            label: end.label,
+            sequence: ordered.length + (start ? 2 : 1),
+            shipmentIndex: -1,
+            role: "end" as const,
+          },
+        ]
+      : []),
+  ];
+}
+
+function scoreRouteQualityAware(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  const diagnostics = analyzeRouteQuality(
+    buildSyntheticVisitOrder(ordered, start, end),
+    ordered,
+    { start, end },
+  );
+  const jumpPenalty = diagnostics.issues.reduce(
+    (penalty, issue) =>
+      penalty +
+      Math.max(
+        0,
+        issue.distanceMeters - (issue.nearestLaterDistanceMeters ?? issue.distanceMeters),
+      ),
+    0,
+  );
+
+  return scoreRouteMeters(ordered, start, end) + jumpPenalty * 3;
+}
+
 function estimateDurationSeconds(distanceMeters: number) {
   const residentialMetersPerSecond = 8.94; // 20 mph, useful fallback for local delivery routes.
 
@@ -1010,7 +1071,8 @@ function orderDefaultRouteStops(
   );
 
   return improvedCandidates.reduce((best, candidate) =>
-    scoreRouteMeters(candidate, start, end) < scoreRouteMeters(best, start, end)
+    scoreRouteQualityAware(candidate, start, end) <
+    scoreRouteQualityAware(best, start, end)
       ? candidate
       : best,
   );

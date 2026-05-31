@@ -293,3 +293,46 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
 });
+
+test("default route avoids quality-diagnostic jumps on mixed cluster input", () => {
+  const stops = [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `a-${index}`,
+      label: `A ${index}`,
+      latitude: 36 + index * 0.0001,
+      longitude: -96 + index * 0.0001,
+    })),
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `b-${index}`,
+      label: `B ${index}`,
+      latitude: 36.05 + index * 0.0001,
+      longitude: -96.05 + index * 0.0001,
+    })),
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `c-${index}`,
+      label: `C ${index}`,
+      latitude: 36.001 + index * 0.0001,
+      longitude: -96.001 + index * 0.0001,
+    })),
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "a-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const shipmentStops = ordered.slice(1);
+  const route = normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: ordered[0] },
+  );
+
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+});
