@@ -7,6 +7,7 @@
     "build": "next build",
     "benchmark:routes": "tsx scripts/benchmark-route-optimizer.ts",
     "benchmark:routes:5000": "ROUTE_BENCHMARK_STOPS=5000 tsx scripts/benchmark-route-optimizer.ts",
+    "verify:sample-route": "tsx scripts/verify-sample-route.ts",
     "test": "tsx --test src/**/*.test.ts",
     "start": "next start",
     "lint": "eslint"

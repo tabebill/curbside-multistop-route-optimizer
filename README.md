@@ -127,6 +127,16 @@ npm run benchmark:routes:5000
 The benchmark uses deterministic synthetic stops and reports stop preservation,
 elapsed time, and route-quality diagnostics for large local route ordering.
 
+To verify the included `sample-addresses.txt` through the live local API, start
+the app with configured Google credentials and run:
+
+```bash
+npm run verify:sample-route
+```
+
+Use `ROUTE_SAMPLE_BASE_URL` if the dev server is not running on
+`http://localhost:3000`.
+
 ## Security
 
 This branch intentionally does not include personal secrets, `.env.local`, service-account JSON, or Cloud Storage credentials. Before deploying your own fork, review API key restrictions, quota limits, service-account permissions, and billing alerts.
