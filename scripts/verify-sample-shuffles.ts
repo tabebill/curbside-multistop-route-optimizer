@@ -53,7 +53,7 @@ const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
 const minNearestNeighborMatchRate = Number(
-  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.75,
+  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.9,
 );
 const endMode = (process.env.ROUTE_SAMPLE_END_MODE ?? "last_stop") as EndMode;
 const sampleLimit = Number(process.env.ROUTE_SAMPLE_LIMIT ?? 0);

@@ -21,7 +21,7 @@ const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
 const minNearestNeighborMatchRate = Number(
-  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.75,
+  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.9,
 );
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
