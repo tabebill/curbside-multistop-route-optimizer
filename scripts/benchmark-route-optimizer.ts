@@ -23,6 +23,12 @@ function getMinNearestNeighborMatchRate() {
   return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.8;
 }
 
+function getMaxLongestLegRatio() {
+  const value = Number(process.env.ROUTE_BENCHMARK_MAX_LONGEST_LEG_RATIO ?? 20);
+
+  return Number.isFinite(value) && value > 0 ? value : 20;
+}
+
 function getShuffleCount() {
   const value = Number(process.env.ROUTE_BENCHMARK_SHUFFLES ?? 1);
 
@@ -135,6 +141,7 @@ function benchmarkStops(
 const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
 const minNearestNeighborMatchRate = getMinNearestNeighborMatchRate();
+const maxLongestLegRatio = getMaxLongestLegRatio();
 const routeOptimizationMode = getRouteOptimizationMode();
 const endMode = getEndMode();
 const shuffleCount = getShuffleCount();
@@ -177,6 +184,7 @@ const result = {
   requestedStops: stopCount,
   maxSuspiciousJumps,
   minNearestNeighborMatchRate,
+  maxLongestLegRatio,
   shuffleCount,
   startStopId,
   endMode,
@@ -218,6 +226,16 @@ for (const run of runs) {
   if (run.nearestNeighborMatchRate < minNearestNeighborMatchRate) {
     console.error(
       `Route benchmark failed for seed ${run.seed}: nearest-neighbor continuity fell below threshold.`,
+    );
+    process.exitCode = 1;
+  }
+
+  if (
+    run.medianLegMeters > 0 &&
+    run.longestLegMeters > run.medianLegMeters * maxLongestLegRatio
+  ) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: longest leg exceeded ${maxLongestLegRatio}x median leg.`,
     );
     process.exitCode = 1;
   }
