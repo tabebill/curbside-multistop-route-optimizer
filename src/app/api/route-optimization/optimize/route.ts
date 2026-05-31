@@ -9,6 +9,7 @@ import {
   countRouteStops,
   filterValidCoordinateStops,
   maxRouteStops,
+  normalizeOptimizeToursResponse,
   normalizeOptimizeToursResponseWithQualityFallback,
   prepareOptimizeToursRequest,
 } from "@/lib/route-optimization";
@@ -29,7 +30,7 @@ type OptimizeBody = {
 
 const synchronousStopLimit = 100;
 const optimizeCacheTtlMs = 10 * 60 * 1000;
-const optimizeCacheVersion = "google-led-auto-v1";
+const optimizeCacheVersion = "nearest-mode-v1";
 const optimizeCache = new Map<
   string,
   { route: ReturnType<typeof normalizeOptimizeToursResponseWithQualityFallback>; expiresAt: number }
@@ -92,7 +93,10 @@ export async function POST(request: Request) {
     );
   }
 
-  if (routeStopCount > synchronousStopLimit) {
+  if (
+    routeStopCount > synchronousStopLimit &&
+    body.routeOptimizationMode !== "nearest_neighbor"
+  ) {
     return NextResponse.json(
       {
         error:
@@ -128,6 +132,25 @@ export async function POST(request: Request) {
     curbsideRouting: body.curbsideRouting,
     routeOptimizationMode: body.routeOptimizationMode,
   });
+
+  if (body.routeOptimizationMode === "nearest_neighbor") {
+    const route = normalizeOptimizeToursResponse(
+      {
+        routes: [
+          {
+            visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+          },
+        ],
+      },
+      shipmentStops,
+      { start, end },
+    );
+
+    rememberOptimizedRoute(cacheKey, route);
+
+    return NextResponse.json(route, { headers: getRateLimitHeaders(rateLimit) });
+  }
+
   const accessToken = await getGoogleAccessToken();
   const response = await fetch(
     `https://routeoptimization.googleapis.com/v1/projects/${projectId}:optimizeTours`,

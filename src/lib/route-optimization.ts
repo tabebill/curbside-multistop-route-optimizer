@@ -2455,7 +2455,9 @@ export function buildLocalOptimizedStopSequenceForTesting(options: {
   const routeOptimizationMode =
     options.routeOptimizationMode ?? "google_optimized";
   const orderedStops =
-    routeOptimizationMode === "google_optimized" || routeOptimizationMode === "auto"
+    routeOptimizationMode === "nearest_neighbor"
+      ? orderNearestStops(shipmentStops, start)
+      : routeOptimizationMode === "google_optimized" || routeOptimizationMode === "auto"
       ? orderDefaultRouteStops(shipmentStops, start, end)
       : routeOptimizationMode === "curbside_strict" ||
           routeOptimizationMode === "curbside_assisted"
@@ -2591,6 +2593,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
   const usesSeededSolve =
     routeOptimizationMode === "curbside_assisted" && !options.validateOnly;
+  const usesNearestSequence = routeOptimizationMode === "nearest_neighbor";
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
     stops,
@@ -2599,7 +2602,9 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesSeededSolve
+  const shipmentStops = usesNearestSequence
+    ? orderNearestStops(unorderedShipmentStops, start)
+    : usesSeededSolve
     ? routeOptimizationMode === "curbside_assisted"
       ? orderCurbsideStops(unorderedShipmentStops, start)
       : orderDefaultRouteStops(unorderedShipmentStops, start, end)

@@ -1250,7 +1250,10 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           return;
         }
 
-        if (getRouteStopCount(stopOptions) > syncStopLimit) {
+        if (
+          getRouteStopCount(stopOptions) > syncStopLimit &&
+          routeOptimizationMode !== "nearest_neighbor"
+        ) {
           await submitBatchOptimization(stopOptions);
           return;
         }
@@ -1581,9 +1584,10 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                 <span className="mb-2 block text-sm font-medium">
                   Optimization
                 </span>
-                <div className="grid grid-cols-2 rounded-md border border-line bg-panel-subtle p-1 sm:grid-cols-4">
+                <div className="grid grid-cols-2 rounded-md border border-line bg-panel-subtle p-1 sm:grid-cols-5">
                   {[
                     ["auto", "Auto"],
+                    ["nearest_neighbor", "Nearest"],
                     ["google_optimized", "Google"],
                     ["curbside_assisted", "Curbside"],
                     ["curbside_strict", "Strict"],

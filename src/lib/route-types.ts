@@ -6,6 +6,7 @@ export type EndMode = "round_trip" | "last_stop" | "selected_stop";
 
 export type RouteOptimizationMode =
   | "auto"
+  | "nearest_neighbor"
   | "google_optimized"
   | "curbside_assisted"
   | "curbside_strict";

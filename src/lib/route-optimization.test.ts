@@ -792,6 +792,42 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 });
 
+test("nearest neighbor mode numbers each sample stop from the closest previous stop", () => {
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "nearest_neighbor",
+  });
+
+  assert.deepEqual(
+    ordered.map((stop) => stop.id),
+    [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "7",
+      "6",
+      "8",
+      "9",
+      "13",
+      "10",
+      "12",
+      "11",
+      "20",
+      "14",
+      "15",
+      "19",
+      "18",
+      "17",
+      "16",
+    ],
+  );
+  assert.equal(getRouteDiagnostics(ordered)?.nearestNeighborMissCount, 0);
+});
+
 test("curbside assisted fallback rejects same-street side reentry", () => {
   const shipmentStops = firstTwentySampleStops.slice(1);
   const shipmentIndexById = new Map(
