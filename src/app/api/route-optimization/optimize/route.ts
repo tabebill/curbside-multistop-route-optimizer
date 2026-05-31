@@ -29,7 +29,7 @@ type OptimizeBody = {
 
 const synchronousStopLimit = 100;
 const optimizeCacheTtlMs = 10 * 60 * 1000;
-const optimizeCacheVersion = "nearest-2opt-v1";
+const optimizeCacheVersion = "multi-candidate-v2";
 const optimizeCache = new Map<
   string,
   { route: ReturnType<typeof normalizeOptimizeToursResponse>; expiresAt: number }
