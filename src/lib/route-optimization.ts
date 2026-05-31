@@ -410,8 +410,8 @@ function analyzeRouteQuality(
   const nearestNeighborResults = legs
     .map((leg, legIndex) => {
       const laterVisits = visitOrder.slice(
-        legIndex + 1,
-        legIndex + 1 + lookAheadLimit,
+        legIndex + 2,
+        legIndex + 2 + lookAheadLimit,
       );
       const nearestLaterMeters = Math.min(
         ...laterVisits
@@ -856,7 +856,7 @@ function getNearestNeighborMissPenaltyMeters(
     const to = path[index + 1];
     const legDistance = getHaversineMeters(from, to);
     const nearestLaterDistance = path
-      .slice(index + 1, index + 1 + lookAheadLimit)
+      .slice(index + 2, index + 2 + lookAheadLimit)
       .reduce(
         (nearest, stop) => Math.min(nearest, getHaversineMeters(from, stop)),
         Number.POSITIVE_INFINITY,

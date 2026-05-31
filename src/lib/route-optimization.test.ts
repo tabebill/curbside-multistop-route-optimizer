@@ -473,6 +473,10 @@ test("route quality diagnostics flag long jumps that skip nearer later stops", (
   );
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 1);
+  assert(
+    (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 1) < 1,
+    "continuity check must compare against unvisited stops after the chosen next stop",
+  );
   assert.equal(route.qualityDiagnostics?.issues[0].fromStopId, "near-1");
   assert.equal(route.qualityDiagnostics?.issues[0].toStopId, "far");
   assert.equal(route.qualityDiagnostics?.issues[0].nearestLaterStopId, "near-2");
@@ -599,7 +603,7 @@ test("quality fallback rejects routes between the old and strict continuity gate
   );
   assert(
     (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
-      0) >= 0.86,
+      0) >= 0.85,
   );
   assert(
     (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
