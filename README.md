@@ -122,10 +122,13 @@ For optimizer-specific checks, run:
 npm test
 npm run benchmark:routes
 npm run benchmark:routes:5000
+npm run benchmark:routes:5000:all
 ```
 
 The benchmark uses deterministic synthetic stops and reports stop preservation,
 elapsed time, and route-quality diagnostics for large local route ordering.
+`benchmark:routes:5000:all` runs both Google-seeded and strict curbside local
+ordering at 5,000 stops.
 
 To verify the included `sample-addresses.txt` through the live local API, start
 the app with configured Google credentials and run:

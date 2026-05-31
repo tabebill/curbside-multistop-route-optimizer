@@ -3,7 +3,7 @@ import {
   buildLocalOptimizedStopSequenceForTesting,
   normalizeOptimizeToursResponse,
 } from "@/lib/route-optimization";
-import type { CoordinateStop } from "@/lib/route-types";
+import type { CoordinateStop, RouteOptimizationMode } from "@/lib/route-types";
 
 function getStopCount() {
   const value = Number(process.env.ROUTE_BENCHMARK_STOPS ?? 2000);
@@ -15,6 +15,14 @@ function getMaxSuspiciousJumps() {
   const value = Number(process.env.ROUTE_BENCHMARK_MAX_SUSPICIOUS_JUMPS ?? 0);
 
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+}
+
+function getRouteOptimizationMode(): RouteOptimizationMode {
+  const value = process.env.ROUTE_BENCHMARK_MODE;
+
+  return value === "curbside_assisted" || value === "curbside_strict"
+    ? value
+    : "google_optimized";
 }
 
 function buildSyntheticStops(count: number): CoordinateStop[] {
@@ -37,13 +45,14 @@ function buildSyntheticStops(count: number): CoordinateStop[] {
 
 const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
+const routeOptimizationMode = getRouteOptimizationMode();
 const stops = buildSyntheticStops(stopCount);
 const startedAt = performance.now();
 const ordered = buildLocalOptimizedStopSequenceForTesting({
   stops,
   startStopId: stops[0].id,
   endMode: "last_stop",
-  routeOptimizationMode: "google_optimized",
+  routeOptimizationMode,
 });
 const elapsedMs = performance.now() - startedAt;
 const shipmentStops = ordered.slice(1);
@@ -61,6 +70,7 @@ const route = normalizeOptimizeToursResponse(
 const uniqueStops = new Set(ordered.map((stop) => stop.id)).size;
 const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
 const result = {
+  routeOptimizationMode,
   requestedStops: stopCount,
   orderedStops: ordered.length,
   uniqueStops,

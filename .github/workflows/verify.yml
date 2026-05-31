@@ -36,5 +36,5 @@ jobs:
       - name: Build app
         run: npm run build
 
-      - name: Run 5,000-stop route benchmark
-        run: npm run benchmark:routes:5000
+      - name: Run 5,000-stop route benchmarks
+        run: npm run benchmark:routes:5000:all

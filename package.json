@@ -7,6 +7,7 @@
     "build": "next build",
     "benchmark:routes": "tsx scripts/benchmark-route-optimizer.ts",
     "benchmark:routes:5000": "ROUTE_BENCHMARK_STOPS=5000 tsx scripts/benchmark-route-optimizer.ts",
+    "benchmark:routes:5000:all": "ROUTE_BENCHMARK_STOPS=5000 ROUTE_BENCHMARK_MODE=google_optimized tsx scripts/benchmark-route-optimizer.ts && ROUTE_BENCHMARK_STOPS=5000 ROUTE_BENCHMARK_MODE=curbside_strict tsx scripts/benchmark-route-optimizer.ts",
     "verify:sample-route": "tsx scripts/verify-sample-route.ts",
     "verify:sample-ui": "tsx scripts/verify-sample-ui.ts",
     "test": "tsx --test src/**/*.test.ts",
