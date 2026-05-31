@@ -493,6 +493,7 @@ function analyzeRouteQuality(
       : 1,
     nearestNeighborMatchCount,
     nearestNeighborMissCount,
+    streetReentryCount: getStreetReentryCount(orderedShipmentStops),
     streetFaceReentryCount: getStreetFaceReentryCount(orderedShipmentStops),
     streetFaceBacktrackCount: getStreetFaceBacktrackCount(orderedShipmentStops),
     issues,
@@ -730,9 +731,13 @@ function scoreRouteMeters(
 }
 
 function getStreetReentryPenaltyMeters(ordered: CoordinateStop[]) {
+  return getStreetReentryCount(ordered) * 250;
+}
+
+function getStreetReentryCount(ordered: CoordinateStop[]) {
   const closedStreetKeys = new Set<string>();
   let previousStreetKey: string | undefined;
-  let penalty = 0;
+  let count = 0;
 
   for (const stop of ordered) {
     const streetKey = parseStreetStop(stop)?.streetKey;
@@ -746,13 +751,13 @@ function getStreetReentryPenaltyMeters(ordered: CoordinateStop[]) {
     }
 
     if (streetKey !== previousStreetKey && closedStreetKeys.has(streetKey)) {
-      penalty += 250;
+      count += 1;
     }
 
     previousStreetKey = streetKey;
   }
 
-  return penalty;
+  return count;
 }
 
 function getStreetFaceReentryPenaltyMeters(ordered: CoordinateStop[]) {
@@ -1336,21 +1341,125 @@ function improveRouteWithBlockRelocate(
     : ordered;
 }
 
+function improveRouteWithSwap(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 4) {
+    return ordered;
+  }
+
+  const best = [...ordered];
+  const maxPasses = ordered.length > 1000 ? 1 : 2;
+  const maxSpan = ordered.length > 1000 ? 100 : ordered.length;
+
+  const getSwappedRouteItem = (
+    leftIndex: number,
+    rightIndex: number,
+    index: number,
+  ) => {
+    if (index === leftIndex) {
+      return best[rightIndex];
+    }
+
+    if (index === rightIndex) {
+      return best[leftIndex];
+    }
+
+    return getRouteItem(best, index, start, end);
+  };
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let improved = false;
+
+    for (let leftIndex = 0; leftIndex < best.length - 1; leftIndex += 1) {
+      const maxRightIndex = Math.min(best.length - 1, leftIndex + maxSpan);
+      let bestRightIndex = leftIndex;
+      let bestGain = 0;
+
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex <= maxRightIndex;
+        rightIndex += 1
+      ) {
+        const affectedEdgeIndexes = new Set([
+          leftIndex - 1,
+          leftIndex,
+          rightIndex - 1,
+          rightIndex,
+        ]);
+        let currentCost = 0;
+        let candidateCost = 0;
+
+        for (const edgeIndex of affectedEdgeIndexes) {
+          const currentFrom = getRouteItem(best, edgeIndex, start, end);
+          const currentTo = getRouteItem(best, edgeIndex + 1, start, end);
+          const candidateFrom = getSwappedRouteItem(
+            leftIndex,
+            rightIndex,
+            edgeIndex,
+          );
+          const candidateTo = getSwappedRouteItem(
+            leftIndex,
+            rightIndex,
+            edgeIndex + 1,
+          );
+
+          currentCost += getHaversineMeters(currentFrom, currentTo);
+          candidateCost += getHaversineMeters(candidateFrom, candidateTo);
+        }
+
+        const gain = currentCost - candidateCost;
+
+        if (gain > bestGain + 0.5) {
+          bestGain = gain;
+          bestRightIndex = rightIndex;
+        }
+      }
+
+      if (bestRightIndex !== leftIndex) {
+        const leftStop = best[leftIndex];
+
+        best[leftIndex] = best[bestRightIndex];
+        best[bestRightIndex] = leftStop;
+        improved = true;
+      }
+    }
+
+    if (!improved) {
+      break;
+    }
+  }
+
+  return scoreRouteQualityAware(best, start, end) <
+    scoreRouteQualityAware(ordered, start, end)
+    ? best
+    : ordered;
+}
+
 function improveRoute(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
+  const parsedStopCount = ordered.filter((stop) => parseStreetStop(stop)).length;
+  const shouldUseExchangeMove = parsedStopCount / ordered.length < 0.4;
+  const distanceImproved = improveRouteWithRelocate(
+    improveRouteWithTwoOpt(ordered, start, end),
+    start,
+    end,
+  );
+  const exchangeImproved = shouldUseExchangeMove
+    ? improveRouteWithSwap(distanceImproved, start, end)
+    : distanceImproved;
+
   return repairStreetFaceBacktracking(
     repairStreetFaceReentries(
       repairStreetReentries(
         repairSuspiciousJumpDestinations(
           improveRouteWithBlockRelocate(
-            improveRouteWithRelocate(
-              improveRouteWithTwoOpt(ordered, start, end),
-              start,
-              end,
-            ),
+            exchangeImproved,
             start,
             end,
           ),
@@ -2123,7 +2232,6 @@ function orderDefaultRouteStops(
       current.diagnostics.streetFaceReentryCount ?? Number.POSITIVE_INFINITY;
     const bestFaceReentries =
       best.diagnostics.streetFaceReentryCount ?? Number.POSITIVE_INFINITY;
-
     if (currentFaceReentries !== bestFaceReentries) {
       return currentFaceReentries < bestFaceReentries ? current : best;
     }

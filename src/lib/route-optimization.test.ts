@@ -371,6 +371,61 @@ test("default route pulls a late nearby stop back into its local neighborhood", 
   );
 });
 
+test("default route repairs exchanged stops in nearby parallel rows", () => {
+  const westRow = Array.from({ length: 14 }, (_, index) => ({
+    id: `west-${index}`,
+    label: `${100 + index * 2} N WEST ROW AVE TULSA 74103`,
+    latitude: 36 + index * 0.00018,
+    longitude: -96,
+  }));
+  const eastRow = Array.from({ length: 14 }, (_, index) => ({
+    id: `east-${index}`,
+    label: `${101 + index * 2} N EAST ROW AVE TULSA 74103`,
+    latitude: 36 + index * 0.00018,
+    longitude: -95.9995,
+  }));
+  const exchangedStops = [
+    westRow[0],
+    westRow[1],
+    eastRow[9],
+    westRow[2],
+    westRow[3],
+    westRow[4],
+    ...eastRow.slice(0, 9),
+    westRow[10],
+    ...westRow.slice(5, 10),
+    ...westRow.slice(11),
+    ...eastRow.slice(10),
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: exchangedStops,
+    startStopId: "west-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const diagnostics = getRouteDiagnostics(ordered);
+  const westIndexes = ordered
+    .map((stop, index) => (stop.id.startsWith("west-") ? index : -1))
+    .filter((index) => index >= 0);
+  const eastIndexes = ordered
+    .map((stop, index) => (stop.id.startsWith("east-") ? index : -1))
+    .filter((index) => index >= 0);
+
+  assert.equal(diagnostics?.suspiciousJumpCount, 0);
+  assert(
+    (diagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
+    "exchanged stops should be pulled back into the local navigation sequence",
+  );
+  assert(
+    Math.max(...westIndexes) - Math.min(...westIndexes) <= westRow.length + 2,
+    "west row numbering should remain mostly contiguous",
+  );
+  assert(
+    Math.max(...eastIndexes) - Math.min(...eastIndexes) <= eastRow.length + 2,
+    "east row numbering should remain mostly contiguous",
+  );
+});
+
 test("default route keeps parsed street groups contiguous before returning to another street", () => {
   const stops: CoordinateStop[] = [
     { id: "main-100", label: "100 E MAIN ST TULSA 74103", latitude: 36, longitude: -96 },

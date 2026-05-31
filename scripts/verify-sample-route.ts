@@ -171,6 +171,7 @@ async function main() {
   const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
   const streetFaceReentries =
     route.qualityDiagnostics?.streetFaceReentryCount ?? 0;
+  const streetReentries = route.qualityDiagnostics?.streetReentryCount ?? 0;
   const streetFaceBacktracks =
     route.qualityDiagnostics?.streetFaceBacktrackCount ?? 0;
   const nearestNeighborMatchRate =
@@ -185,6 +186,7 @@ async function main() {
     uniqueVisits: new Set(orderedStopIds).size,
     suspiciousJumps,
     maxSuspiciousJumps,
+    streetReentries,
     streetFaceReentries,
     maxStreetFaceReentries,
     streetFaceBacktracks,

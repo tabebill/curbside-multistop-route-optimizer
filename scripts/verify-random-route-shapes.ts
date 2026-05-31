@@ -192,6 +192,36 @@ function buildGenericInnerPocket(): CoordinateStop[] {
   );
 }
 
+function buildGenericParallelRowsWithExchanges(): CoordinateStop[] {
+  const rows = Array.from({ length: 4 }, (_, rowIndex) =>
+    Array.from({ length: 18 }, (_, stopIndex) => ({
+      id: `generic-row-${rowIndex}-${stopIndex}`,
+      label: `Generic row ${rowIndex + 1}-${stopIndex + 1}`,
+      latitude: 36 + stopIndex * 0.00016,
+      longitude: -96 + rowIndex * 0.00042,
+    })),
+  );
+  const stops = rows.flat();
+
+  for (const [leftId, rightId] of [
+    ["generic-row-0-3", "generic-row-1-10"],
+    ["generic-row-1-4", "generic-row-2-11"],
+    ["generic-row-2-5", "generic-row-3-12"],
+  ]) {
+    const leftIndex = stops.findIndex((stop) => stop.id === leftId);
+    const rightIndex = stops.findIndex((stop) => stop.id === rightId);
+
+    if (leftIndex >= 0 && rightIndex >= 0) {
+      const leftStop = stops[leftIndex];
+
+      stops[leftIndex] = stops[rightIndex];
+      stops[rightIndex] = leftStop;
+    }
+  }
+
+  return stops;
+}
+
 const routeOptimizationMode =
   (process.env.ROUTE_RANDOM_MODE as RouteOptimizationMode | undefined) ?? "auto";
 const maxSuspiciousJumps = Number(process.env.ROUTE_RANDOM_MAX_SUSPICIOUS_JUMPS ?? 0);
@@ -217,6 +247,10 @@ const scenarios: Scenario[] = [
   { name: "generic-line-gaps", stops: buildGenericLineWithNumberingGaps() },
   { name: "generic-cluster-grid", stops: buildGenericClusterGrid() },
   { name: "generic-inner-pocket", stops: buildGenericInnerPocket() },
+  {
+    name: "generic-parallel-rows-exchanges",
+    stops: buildGenericParallelRowsWithExchanges(),
+  },
   {
     name: "selected-end-serpentine",
     stops: buildSerpentineBlocks(),
@@ -260,6 +294,7 @@ const results = scenarios.flatMap((scenario, scenarioIndex) =>
       lastStopId: ordered.at(-1)?.id,
       expectedEndStopId: endStopId,
       suspiciousJumps: diagnostics?.suspiciousJumpCount ?? 0,
+      streetReentries: diagnostics?.streetReentryCount ?? 0,
       streetFaceReentries: diagnostics?.streetFaceReentryCount ?? 0,
       streetFaceBacktracks: diagnostics?.streetFaceBacktrackCount ?? 0,
       nearestNeighborMatchRate: diagnostics?.nearestNeighborMatchRate ?? 0,
