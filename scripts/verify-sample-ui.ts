@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
+import type { Page } from "playwright";
 import {
   buildLocalOptimizedStopSequenceForTesting,
   normalizeOptimizeToursResponse,
@@ -44,9 +45,7 @@ function readFixtureStops() {
   return fixture.stops;
 }
 
-async function installOfflineApiMocks(
-  page: Awaited<ReturnType<ReturnType<typeof chromium.launch>["newPage"]>>,
-) {
+async function installOfflineApiMocks(page: Page) {
   if (useLiveApi) {
     return;
   }
