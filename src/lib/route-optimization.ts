@@ -1468,22 +1468,34 @@ function improveRoute(
   const exchangeImproved = shouldUseExchangeMove
     ? improveRouteWithSwap(distanceImproved, start, end)
     : distanceImproved;
+  const blockImproved = improveRouteWithBlockRelocate(
+    exchangeImproved,
+    start,
+    end,
+  );
+  const jumpRepaired = repairSuspiciousJumpDestinations(
+    blockImproved,
+    start,
+    end,
+  );
+  const streetRepaired = repairStreetFaceBacktracking(
+    repairStreetFaceReentries(
+      repairStreetReentries(jumpRepaired, start, end),
+      start,
+      end,
+    ),
+    start,
+    end,
+  );
+  const polished = repairSuspiciousJumpDestinations(
+    streetRepaired,
+    start,
+    end,
+  );
 
   return repairStreetFaceBacktracking(
     repairStreetFaceReentries(
-      repairStreetReentries(
-        repairSuspiciousJumpDestinations(
-          improveRouteWithBlockRelocate(
-            exchangeImproved,
-            start,
-            end,
-          ),
-          start,
-          end,
-        ),
-        start,
-        end,
-      ),
+      repairStreetReentries(polished, start, end),
       start,
       end,
     ),
@@ -1791,13 +1803,23 @@ function repairStreetFaceBacktracking(
       ...best.slice(run.endIndex),
     ]);
     const next = candidates.reduce((candidateBest, candidate) =>
-      scoreRouteQualityAware(candidate, start, end) <
-      scoreRouteQualityAware(candidateBest, start, end)
-        ? candidate
-        : candidateBest,
+      getStreetFaceBacktrackCount(candidate) !==
+      getStreetFaceBacktrackCount(candidateBest)
+        ? getStreetFaceBacktrackCount(candidate) <
+            getStreetFaceBacktrackCount(candidateBest)
+          ? candidate
+          : candidateBest
+        : scoreRouteQualityAware(candidate, start, end) <
+            scoreRouteQualityAware(candidateBest, start, end)
+          ? candidate
+          : candidateBest,
     );
 
-    if (scoreRouteQualityAware(next, start, end) < scoreRouteQualityAware(best, start, end)) {
+    if (
+      getStreetFaceBacktrackCount(next) < getStreetFaceBacktrackCount(best) ||
+      scoreRouteQualityAware(next, start, end) <
+        scoreRouteQualityAware(best, start, end)
+    ) {
       best = next;
     }
   }

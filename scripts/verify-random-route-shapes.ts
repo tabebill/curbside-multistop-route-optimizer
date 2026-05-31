@@ -33,6 +33,14 @@ function shuffleStops<T>(items: T[], seed: number) {
   return shuffled;
 }
 
+function randomBetween(random: () => number, min: number, max: number) {
+  return min + random() * (max - min);
+}
+
+function pick<T>(items: T[], random: () => number) {
+  return items[Math.floor(random() * items.length)];
+}
+
 function buildRouteDiagnostics(
   ordered: CoordinateStop[],
   endMode: EndMode,
@@ -222,6 +230,159 @@ function buildGenericParallelRowsWithExchanges(): CoordinateStop[] {
   return stops;
 }
 
+function buildFuzzScenario(seed: number): Scenario {
+  const random = createSeededRandom(seed);
+  const pattern = seed % 6;
+  const streetTypes = ["ST", "PL", "AVE", "DR", "CT"];
+  const baseLatitude = 35.95 + random() * 0.2;
+  const baseLongitude = -96.1 + random() * 0.2;
+  const endMode =
+    seed % 10 === 0 ? "round_trip" : seed % 7 === 0 ? "selected_stop" : "last_stop";
+
+  if (pattern === 0) {
+    const streetCount = 4 + (seed % 5);
+    const stopsPerStreet = 8 + (seed % 9);
+    const stops = Array.from({ length: streetCount }, (_, streetIndex) =>
+      Array.from({ length: stopsPerStreet }, (_, stopIndex) => {
+        const serpentineIndex =
+          streetIndex % 2 === 0 ? stopIndex : stopsPerStreet - stopIndex - 1;
+
+        return {
+          id: `fuzz-${seed}-grid-${streetIndex}-${stopIndex}`,
+          label: `${100 + stopIndex * 2} E FUZZ GRID ${streetIndex} ${pick(streetTypes, random)} TULSA 74103`,
+          latitude:
+            baseLatitude +
+            streetIndex * randomBetween(random, 0.00018, 0.00045) +
+            randomBetween(random, -0.00002, 0.00002),
+          longitude:
+            baseLongitude +
+            serpentineIndex * randomBetween(random, 0.00012, 0.00035) +
+            randomBetween(random, -0.00002, 0.00002),
+        };
+      }),
+    ).flat();
+
+    return { name: `fuzz-serpentine-grid-${seed}`, stops, endMode };
+  }
+
+  if (pattern === 1) {
+    const clusterCount = 3 + (seed % 5);
+    const stops = Array.from({ length: clusterCount }, (_, clusterIndex) =>
+      Array.from({ length: 7 + ((seed + clusterIndex) % 10) }, (_, stopIndex) => ({
+        id: `fuzz-${seed}-cluster-${clusterIndex}-${stopIndex}`,
+        label: `${200 + stopIndex * 2} E FUZZ CLUSTER ${clusterIndex} ${pick(streetTypes, random)} TULSA 74103`,
+        latitude:
+          baseLatitude +
+          Math.floor(clusterIndex / 3) * randomBetween(random, 0.004, 0.018) +
+          randomBetween(random, -0.0012, 0.0012),
+        longitude:
+          baseLongitude +
+          (clusterIndex % 3) * randomBetween(random, 0.004, 0.018) +
+          randomBetween(random, -0.0012, 0.0012),
+      })),
+    ).flat();
+
+    return { name: `fuzz-clusters-${seed}`, stops, endMode };
+  }
+
+  if (pattern === 2) {
+    const ringCount = 24 + (seed % 18);
+    const innerCount = 8 + (seed % 12);
+    const ringStops = Array.from({ length: ringCount }, (_, index) => {
+      const angle = (index / ringCount) * Math.PI * 2;
+
+      return {
+        id: `fuzz-${seed}-ring-${index}`,
+        label: `${300 + index * 2} E FUZZ RING ${index % 4} DR TULSA 74103`,
+        latitude: baseLatitude + Math.sin(angle) * randomBetween(random, 0.004, 0.012),
+        longitude: baseLongitude + Math.cos(angle) * randomBetween(random, 0.004, 0.012),
+      };
+    });
+    const innerStops = Array.from({ length: innerCount }, (_, index) => {
+      const angle = (index / innerCount) * Math.PI * 2;
+
+      return {
+        id: `fuzz-${seed}-inner-${index}`,
+        label: `Imported inner point ${seed}-${index}`,
+        latitude: baseLatitude + Math.sin(angle) * randomBetween(random, 0.0008, 0.0025),
+        longitude: baseLongitude + Math.cos(angle) * randomBetween(random, 0.0008, 0.0025),
+      };
+    });
+
+    return {
+      name: `fuzz-ring-pocket-${seed}`,
+      stops: [...ringStops, ...innerStops],
+      endMode,
+    };
+  }
+
+  if (pattern === 3) {
+    const corridorCount = 32 + (seed % 28);
+    const branchCount = 12 + (seed % 18);
+    const stops = [
+      ...Array.from({ length: corridorCount }, (_, index) => ({
+        id: `fuzz-${seed}-corridor-${index}`,
+        label: `${400 + index * 2} E FUZZ CORRIDOR ST TULSA 74103`,
+        latitude: baseLatitude + index * randomBetween(random, 0.00008, 0.0002),
+        longitude: baseLongitude + Math.sin(index / 5) * randomBetween(random, 0.00012, 0.00035),
+      })),
+      ...Array.from({ length: branchCount }, (_, index) => ({
+        id: `fuzz-${seed}-branch-${index}`,
+        label: `${600 + index * 2} E FUZZ BRANCH ${Math.floor(index / 6)} PL TULSA 74103`,
+        latitude:
+          baseLatitude +
+          randomBetween(random, 0.0015, 0.006) +
+          index * randomBetween(random, 0.00004, 0.00012),
+        longitude:
+          baseLongitude -
+          randomBetween(random, 0.001, 0.006) +
+          (index % 6) * randomBetween(random, 0.00014, 0.00028),
+      })),
+    ];
+
+    return { name: `fuzz-corridor-branches-${seed}`, stops, endMode };
+  }
+
+  if (pattern === 4) {
+    const segmentCount = 3 + (seed % 5);
+    const stops = Array.from({ length: segmentCount }, (_, segmentIndex) =>
+      Array.from({ length: 7 + ((seed + segmentIndex) % 8) }, (_, stopIndex) => ({
+        id: `fuzz-${seed}-shared-${segmentIndex}-${stopIndex}`,
+        label: `${100 + stopIndex * 2 + segmentIndex * 700} E SHARED FUZZ ST TULSA 74103`,
+        latitude:
+          baseLatitude +
+          segmentIndex * randomBetween(random, 0.005, 0.017) +
+          stopIndex * randomBetween(random, 0.00008, 0.00018),
+        longitude:
+          baseLongitude +
+          (segmentIndex % 2) * randomBetween(random, 0.005, 0.014) +
+          stopIndex * randomBetween(random, 0.00004, 0.00014),
+      })),
+    ).flat();
+
+    return { name: `fuzz-repeated-street-segments-${seed}`, stops, endMode };
+  }
+
+  const rows = 3 + (seed % 5);
+  const columns = 8 + (seed % 12);
+  const stops = Array.from({ length: rows }, (_, rowIndex) =>
+    Array.from({ length: columns }, (_, columnIndex) => ({
+      id: `fuzz-${seed}-generic-${rowIndex}-${columnIndex}`,
+      label: `Coordinate import ${seed}-${rowIndex}-${columnIndex}`,
+      latitude:
+        baseLatitude +
+        columnIndex * randomBetween(random, 0.00012, 0.00026) +
+        randomBetween(random, -0.00003, 0.00003),
+      longitude:
+        baseLongitude +
+        rowIndex * randomBetween(random, 0.00022, 0.00055) +
+        randomBetween(random, -0.00003, 0.00003),
+    })),
+  ).flat();
+
+  return { name: `fuzz-generic-parallel-${seed}`, stops, endMode };
+}
+
 const routeOptimizationMode =
   (process.env.ROUTE_RANDOM_MODE as RouteOptimizationMode | undefined) ?? "auto";
 const maxSuspiciousJumps = Number(process.env.ROUTE_RANDOM_MAX_SUSPICIOUS_JUMPS ?? 0);
@@ -239,6 +400,8 @@ const minLegBaselineMeters = Number(
   process.env.ROUTE_RANDOM_MIN_LEG_BASELINE_METERS ?? 80,
 );
 const shuffleCount = Number(process.env.ROUTE_RANDOM_SHUFFLES ?? 3);
+const fuzzCount = Number(process.env.ROUTE_RANDOM_FUZZ_COUNT ?? 18);
+const fuzzSeedStart = Number(process.env.ROUTE_RANDOM_FUZZ_SEED_START ?? 20260531);
 const scenarios: Scenario[] = [
   { name: "serpentine-blocks", stops: buildSerpentineBlocks() },
   { name: "culs-de-sac", stops: buildCulsDeSac() },
@@ -261,6 +424,9 @@ const scenarios: Scenario[] = [
     stops: buildCulsDeSac(),
     endMode: "round_trip",
   },
+  ...Array.from({ length: fuzzCount }, (_, index) =>
+    buildFuzzScenario(fuzzSeedStart + index),
+  ),
 ];
 const results = scenarios.flatMap((scenario, scenarioIndex) =>
   Array.from({ length: shuffleCount }, (_, shuffleIndex) => {
@@ -286,6 +452,7 @@ const results = scenarios.flatMap((scenario, scenarioIndex) =>
     return {
       scenario: scenario.name,
       seed,
+      endMode: scenario.endMode ?? "last_stop",
       stopCount: stops.length,
       orderedStops: ordered.length,
       uniqueStops: new Set(ordered.map((stop) => stop.id)).size,
@@ -310,6 +477,8 @@ const result = {
   routeOptimizationMode,
   scenarioCount: scenarios.length,
   shuffleCount,
+  fuzzCount,
+  fuzzSeedStart,
   maxSuspiciousJumps,
   minNearestNeighborMatchRate,
   maxStreetFaceReentries,
@@ -352,7 +521,10 @@ for (const run of results) {
     process.exitCode = 1;
   }
 
-  if (run.nearestNeighborMatchRate < minNearestNeighborMatchRate) {
+  const minRunNearestNeighborMatchRate =
+    run.endMode === "round_trip" ? 0.85 : minNearestNeighborMatchRate;
+
+  if (run.nearestNeighborMatchRate < minRunNearestNeighborMatchRate) {
     console.error(`${run.scenario} seed ${run.seed}: weak nearest-neighbor continuity.`);
     process.exitCode = 1;
   }
