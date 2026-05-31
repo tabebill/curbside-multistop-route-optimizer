@@ -1342,11 +1342,15 @@ function improveRoute(
   end: CoordinateStop | undefined,
 ) {
   return repairStreetFaceBacktracking(
-    repairStreetReentries(
-      repairSuspiciousJumpDestinations(
-        improveRouteWithBlockRelocate(
-          improveRouteWithRelocate(
-            improveRouteWithTwoOpt(ordered, start, end),
+    repairStreetFaceReentries(
+      repairStreetReentries(
+        repairSuspiciousJumpDestinations(
+          improveRouteWithBlockRelocate(
+            improveRouteWithRelocate(
+              improveRouteWithTwoOpt(ordered, start, end),
+              start,
+              end,
+            ),
             start,
             end,
           ),
@@ -1463,6 +1467,47 @@ function isSameNearbyStreetFace(
   );
 }
 
+function isSameNearbyStreet(
+  current: ParsedStreetStop,
+  previous: ParsedStreetStop,
+) {
+  return (
+    current.streetKey === previous.streetKey &&
+    getHaversineMeters(current.stop, previous.stop) <= 520 &&
+    Math.abs(current.houseNumber - previous.houseNumber) <= 520
+  );
+}
+
+function getStreetRuns(ordered: CoordinateStop[]) {
+  if (ordered.length < 3) {
+    return [];
+  }
+
+  const runs: Array<{ startIndex: number; endIndex: number }> = [];
+  let runStartIndex = 0;
+  let previous = parseStreetStop(ordered[0]);
+
+  for (let index = 1; index < ordered.length; index += 1) {
+    const parsed = parseStreetStop(ordered[index]);
+
+    if (!parsed || !previous || !isSameNearbyStreet(parsed, previous)) {
+      if (index - runStartIndex >= 3) {
+        runs.push({ startIndex: runStartIndex, endIndex: index });
+      }
+
+      runStartIndex = index;
+    }
+
+    previous = parsed;
+  }
+
+  if (ordered.length - runStartIndex >= 3) {
+    runs.push({ startIndex: runStartIndex, endIndex: ordered.length });
+  }
+
+  return runs;
+}
+
 function getStreetFaceRuns(ordered: CoordinateStop[]) {
   if (ordered.length < 3) {
     return [];
@@ -1491,6 +1536,109 @@ function getStreetFaceRuns(ordered: CoordinateStop[]) {
   }
 
   return runs;
+}
+
+function getSideGroupedStreetCandidates(run: CoordinateStop[]) {
+  const sides: ParsedStreetStop["side"][] = ["odd", "even"];
+  const grouped = new Map<ParsedStreetStop["side"], CoordinateStop[]>();
+
+  for (const side of sides) {
+    grouped.set(side, []);
+  }
+
+  for (const stop of run) {
+    const parsed = parseStreetStop(stop);
+
+    if (parsed) {
+      grouped.get(parsed.side)?.push(stop);
+    }
+  }
+
+  return sides.flatMap((firstSide) => {
+    const secondSide = firstSide === "odd" ? "even" : "odd";
+    const firstStops = grouped.get(firstSide) ?? [];
+    const secondStops = grouped.get(secondSide) ?? [];
+
+    return [
+      [...firstStops, ...secondStops],
+      [...firstStops, ...secondStops].reverse(),
+      [...firstStops.slice().reverse(), ...secondStops],
+      [...firstStops, ...secondStops.slice().reverse()],
+    ];
+  });
+}
+
+function scoreRunCandidate(
+  run: CoordinateStop[],
+  before: CoordinateStop | undefined,
+  after: CoordinateStop | undefined,
+) {
+  const routeItems = [
+    ...(before ? [before] : []),
+    ...run,
+    ...(after ? [after] : []),
+  ];
+  const routeMeters = routeItems.reduce((total, stop, index) => {
+    if (!index) {
+      return total;
+    }
+
+    return total + getHaversineMeters(routeItems[index - 1], stop);
+  }, 0);
+
+  return (
+    routeMeters +
+    getStreetFaceReentryPenaltyMeters(run) * 8 +
+    getStreetFaceBacktrackPenaltyMeters(run) * 8
+  );
+}
+
+function repairStreetFaceReentries(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  let best = [...ordered];
+
+  for (const run of getStreetRuns(best)) {
+    const currentRun = best.slice(run.startIndex, run.endIndex);
+
+    if (!getStreetFaceReentryCount(currentRun)) {
+      continue;
+    }
+
+    const before = getRouteItem(best, run.startIndex - 1, start, end);
+    const after = getRouteItem(best, run.endIndex, start, end);
+    const currentReentries = getStreetFaceReentryCount(currentRun);
+    const currentScore = scoreRunCandidate(currentRun, before, after);
+    const nextRun = getSideGroupedStreetCandidates(currentRun)
+      .filter((candidateRun) => candidateRun.length === currentRun.length)
+      .reduce((candidateBest, candidateRun) => {
+        const candidateReentries = getStreetFaceReentryCount(candidateRun);
+        const bestReentries = getStreetFaceReentryCount(candidateBest);
+
+        if (candidateReentries !== bestReentries) {
+          return candidateReentries < bestReentries ? candidateRun : candidateBest;
+        }
+
+        return scoreRunCandidate(candidateRun, before, after) <
+          scoreRunCandidate(candidateBest, before, after)
+          ? candidateRun
+          : candidateBest;
+      }, currentRun);
+    const nextReentries = getStreetFaceReentryCount(nextRun);
+    const nextScore = scoreRunCandidate(nextRun, before, after);
+
+    if (nextReentries < currentReentries || nextScore < currentScore) {
+      best = [
+        ...best.slice(0, run.startIndex),
+        ...nextRun,
+        ...best.slice(run.endIndex),
+      ];
+    }
+  }
+
+  return best;
 }
 
 function repairStreetFaceBacktracking(

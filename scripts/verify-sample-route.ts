@@ -20,6 +20,12 @@ const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
 const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
+const maxStreetFaceReentries = Number(
+  process.env.ROUTE_SAMPLE_MAX_STREET_FACE_REENTRIES ?? 0,
+);
+const maxStreetFaceBacktracks = Number(
+  process.env.ROUTE_SAMPLE_MAX_STREET_FACE_BACKTRACKS ?? 0,
+);
 const minNearestNeighborMatchRate = Number(
   process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.9,
 );
@@ -108,6 +114,10 @@ async function main() {
 
   const orderedStopIds = route.visitOrder.map((visit) => visit.stopId);
   const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+  const streetFaceReentries =
+    route.qualityDiagnostics?.streetFaceReentryCount ?? 0;
+  const streetFaceBacktracks =
+    route.qualityDiagnostics?.streetFaceBacktrackCount ?? 0;
   const nearestNeighborMatchRate =
     route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0;
   const result = {
@@ -118,6 +128,10 @@ async function main() {
     uniqueVisits: new Set(orderedStopIds).size,
     suspiciousJumps,
     maxSuspiciousJumps,
+    streetFaceReentries,
+    maxStreetFaceReentries,
+    streetFaceBacktracks,
+    maxStreetFaceBacktracks,
     nearestNeighborMatchRate,
     minNearestNeighborMatchRate,
     distanceMeters: route.distanceMeters,
@@ -146,6 +160,16 @@ async function main() {
 
   if (suspiciousJumps > maxSuspiciousJumps) {
     console.error("Sample verification failed: suspicious jump count exceeded threshold.");
+    process.exitCode = 1;
+  }
+
+  if (streetFaceReentries > maxStreetFaceReentries) {
+    console.error("Sample verification failed: street-face reentry count exceeded threshold.");
+    process.exitCode = 1;
+  }
+
+  if (streetFaceBacktracks > maxStreetFaceBacktracks) {
+    console.error("Sample verification failed: street-face backtrack count exceeded threshold.");
     process.exitCode = 1;
   }
 

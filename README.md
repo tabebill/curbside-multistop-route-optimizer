@@ -138,7 +138,9 @@ npm run verify:sample-route
 ```
 
 Use `ROUTE_SAMPLE_BASE_URL` if the dev server is not running on
-`http://localhost:3000`.
+`http://localhost:3000`. The sample verifier fails on missing or duplicate
+visits, suspicious jumps, poor nearest-neighbor continuity, repeated street-face
+reentries, and curbside house-number backtracking.
 
 To verify the same sample through the browser UI, with import, validation,
 Google-candidate acceptance, optimization, and navigation numbering checked end

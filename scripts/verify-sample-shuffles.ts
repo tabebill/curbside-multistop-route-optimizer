@@ -52,6 +52,12 @@ const shuffleCount = Math.max(
 const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
+const maxStreetFaceReentries = Number(
+  process.env.ROUTE_SAMPLE_MAX_STREET_FACE_REENTRIES ?? 0,
+);
+const maxStreetFaceBacktracks = Number(
+  process.env.ROUTE_SAMPLE_MAX_STREET_FACE_BACKTRACKS ?? 0,
+);
 const minNearestNeighborMatchRate = Number(
   process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.9,
 );
@@ -163,6 +169,10 @@ async function main() {
     const route = await optimizeStops(shuffled, seed, startStopId, endStopId);
     const orderedStopIds = route.visitOrder.map((visit) => visit.stopId);
     const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+    const streetFaceReentries =
+      route.qualityDiagnostics?.streetFaceReentryCount ?? 0;
+    const streetFaceBacktracks =
+      route.qualityDiagnostics?.streetFaceBacktrackCount ?? 0;
     const nearestNeighborMatchRate =
       route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0;
     const uniqueVisits = new Set(orderedStopIds).size;
@@ -173,6 +183,8 @@ async function main() {
       firstStopId: orderedStopIds[0],
       lastStopId: orderedStopIds.at(-1),
       suspiciousJumps,
+      streetFaceReentries,
+      streetFaceBacktracks,
       nearestNeighborMatchRate,
       nearestNeighborMissCount:
         route.qualityDiagnostics?.nearestNeighborMissCount ?? 0,
@@ -209,6 +221,16 @@ async function main() {
       process.exitCode = 1;
     }
 
+    if (streetFaceReentries > maxStreetFaceReentries) {
+      console.error(`seed ${seed}: street-face reentry count exceeded threshold.`);
+      process.exitCode = 1;
+    }
+
+    if (streetFaceBacktracks > maxStreetFaceBacktracks) {
+      console.error(`seed ${seed}: street-face backtrack count exceeded threshold.`);
+      process.exitCode = 1;
+    }
+
     if (nearestNeighborMatchRate < minNearestNeighborMatchRate) {
       console.error(`seed ${seed}: nearest-neighbor continuity fell below threshold.`);
       process.exitCode = 1;
@@ -223,6 +245,8 @@ async function main() {
         geocodedStops: stops.length,
         shuffleCount,
         maxSuspiciousJumps,
+        maxStreetFaceReentries,
+        maxStreetFaceBacktracks,
         minNearestNeighborMatchRate,
         startStopId,
         endMode,
