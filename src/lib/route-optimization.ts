@@ -103,21 +103,21 @@ function getRouteEndpoints({
     endMode === "round_trip"
       ? start
       : endMode === "selected_stop"
-        ? getStopById(stops, endStopId) ?? stops.at(-1)
-        : stops.at(-1);
+        ? getStopById(stops, endStopId)
+        : undefined;
 
-  return { start, end: end ?? start };
+  return { start, end };
 }
 
 function getShipmentStops(
   stops: CoordinateStop[],
   start: CoordinateStop,
-  end: CoordinateStop,
+  end?: CoordinateStop,
 ) {
-  const fixedStopIds = new Set([start.id, end.id]);
+  const fixedStopIds = new Set([start.id, end?.id].filter(Boolean));
   const shipmentStops = stops.filter((stop) => !fixedStopIds.has(stop.id));
 
-  if (!shipmentStops.length && start.id !== end.id) {
+  if (end && !shipmentStops.length && start.id !== end.id) {
     return [end];
   }
 
@@ -234,6 +234,34 @@ function getDistance(
   const lng = from.longitude - to.longitude;
 
   return lat * lat + lng * lng;
+}
+
+function orderVisitsByNearestStop<T extends { stopId: string }>(
+  visits: T[],
+  stops: CoordinateStop[],
+  start: CoordinateStop | undefined,
+) {
+  const stopById = new Map(stops.map((stop) => [stop.id, stop]));
+  const remaining = [...visits];
+  const ordered: T[] = [];
+  let cursor = start;
+
+  while (remaining.length) {
+    const nextIndex = remaining.reduce((bestIndex, visit, index) => {
+      const bestVisit = remaining[bestIndex];
+
+      return getDistance(cursor, stopById.get(visit.stopId)) <
+        getDistance(cursor, stopById.get(bestVisit.stopId))
+        ? index
+        : bestIndex;
+    }, 0);
+    const [nextVisit] = remaining.splice(nextIndex, 1);
+
+    ordered.push(nextVisit);
+    cursor = stopById.get(nextVisit.stopId) ?? cursor;
+  }
+
+  return ordered;
 }
 
 function scoreOrder(
@@ -448,7 +476,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
         {
           label: "primary-route",
           startWaypoint: getWaypoint(start, usesCurbsideWaypoints),
-          endWaypoint: getWaypoint(end, usesCurbsideWaypoints),
+          ...(end ? { endWaypoint: getWaypoint(end, usesCurbsideWaypoints) } : {}),
           ...getVehicleCosts(),
         },
       ],
@@ -500,6 +528,11 @@ export function normalizeOptimizeToursResponse(
         role: isEndpointVisit ? ("end" as const) : ("stop" as const),
       };
     }) ?? [];
+  const driverFacingVisits = orderVisitsByNearestStop(
+    middleVisits,
+    shipmentStops,
+    endpoints?.start,
+  );
   const visitOrder = [
     ...(endpoints?.start
       ? [
@@ -512,7 +545,7 @@ export function normalizeOptimizeToursResponse(
           },
         ]
       : []),
-    ...middleVisits.map((visit, index) => ({
+    ...driverFacingVisits.map((visit, index) => ({
       ...visit,
       sequence: index + (endpoints?.start ? 2 : 1),
     })),
@@ -522,7 +555,7 @@ export function normalizeOptimizeToursResponse(
             stopId: endpoints.end.id,
             label: endpoints.end.label,
             sequence:
-              middleVisits.length + (endpoints?.start ? 2 : 1),
+              driverFacingVisits.length + (endpoints?.start ? 2 : 1),
             shipmentIndex: -1,
             role: "end" as const,
           },
