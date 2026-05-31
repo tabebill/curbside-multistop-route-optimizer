@@ -123,6 +123,22 @@ function getRouteDiagnostics(ordered: CoordinateStop[]) {
   ).qualityDiagnostics;
 }
 
+function assertCleanRouteContinuity(
+  ordered: CoordinateStop[],
+  minNearestNeighborMatchRate = 0.9,
+) {
+  const diagnostics = getRouteDiagnostics(ordered);
+
+  assert.equal(ordered.length, new Set(ordered.map((stop) => stop.id)).size);
+  assert.equal(diagnostics?.suspiciousJumpCount, 0);
+  assert(
+    (diagnostics?.nearestNeighborMatchRate ?? 0) >= minNearestNeighborMatchRate,
+    `nearest-neighbor continuity should stay above ${minNearestNeighborMatchRate}; got ${
+      diagnostics?.nearestNeighborMatchRate ?? 0
+    }`,
+  );
+}
+
 test("default route keeps nearby sample-address stops together before moving to farther streets", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
@@ -676,6 +692,75 @@ test("default route stays clean across deterministic shuffled cluster imports", 
       `scenario ${scenario} should not skip nearer clustered stops`,
     );
   }
+});
+
+test("default route stays stable across adversarial neighborhood shapes", () => {
+  const random = createSeededRandom(2026053101);
+  const scenarios: CoordinateStop[][] = [
+    Array.from({ length: 6 }, (_, streetIndex) =>
+      Array.from({ length: 12 }, (_, houseIndex) => ({
+        id: `row-${streetIndex}-${houseIndex}`,
+        label: `${100 + houseIndex * 2} E ROW ${streetIndex} ST TULSA 74103`,
+        latitude: 36 + streetIndex * 0.001,
+        longitude:
+          -96 +
+          (streetIndex % 2 === 0 ? houseIndex : 11 - houseIndex) * 0.00018,
+      })),
+    ).flat(),
+    Array.from({ length: 5 }, (_, pocketIndex) => {
+      const angle = (pocketIndex / 5) * Math.PI * 2;
+      const centerLatitude = 36 + Math.sin(angle) * 0.008;
+      const centerLongitude = -96 + Math.cos(angle) * 0.008;
+
+      return Array.from({ length: 10 }, (_, stopIndex) => ({
+        id: `pocket-${pocketIndex}-${stopIndex}`,
+        label: `${200 + stopIndex * 2} E POCKET ${pocketIndex} PL TULSA 74103`,
+        latitude: centerLatitude + Math.sin((stopIndex / 10) * Math.PI) * 0.0012,
+        longitude: centerLongitude + stopIndex * 0.00012,
+      }));
+    }).flat(),
+    Array.from({ length: 9 }, (_, avenueIndex) =>
+      Array.from({ length: 8 }, (_, houseIndex) => ({
+        id: `grid-${avenueIndex}-${houseIndex}`,
+        label: `${300 + houseIndex * 2} N GRID ${avenueIndex} AVE TULSA 74103`,
+        latitude: 36 + houseIndex * 0.00022,
+        longitude: -96 + avenueIndex * 0.00022,
+      })),
+    ).flat(),
+    [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        id: `corridor-${index}`,
+        label: `${400 + index * 2} E CORRIDOR ST TULSA 74103`,
+        latitude: 36 + index * 0.00018,
+        longitude: -96 + Math.sin(index / 4) * 0.0003,
+      })),
+      ...Array.from({ length: 16 }, (_, index) => ({
+        id: `branch-${index}`,
+        label: `${500 + index * 2} E BRANCH PL TULSA 74103`,
+        latitude: 36.003 + index * 0.00008,
+        longitude: -96.003 + index * 0.0002,
+      })),
+    ],
+  ];
+
+  scenarios.forEach((stops, scenarioIndex) => {
+    for (let seed = 1; seed <= 4; seed += 1) {
+      const shuffled = shuffleStops(stops, random);
+      const ordered = buildLocalOptimizedStopSequenceForTesting({
+        stops: shuffled,
+        startStopId: shuffled[0].id,
+        endMode: "last_stop",
+        routeOptimizationMode: "google_optimized",
+      });
+
+      assert.equal(
+        ordered.length,
+        shuffled.length,
+        `scenario ${scenarioIndex} seed ${seed} should retain every stop`,
+      );
+      assertCleanRouteContinuity(ordered, 0.9);
+    }
+  });
 });
 
 test("curbside strict stays clean across shuffled repeated street segments", () => {
