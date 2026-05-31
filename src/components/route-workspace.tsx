@@ -450,7 +450,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
   const [routeOptimizationMode, setRouteOptimizationMode] =
     useState<RouteOptimizationMode>("google_optimized");
   const [startMode, setStartMode] = useState<StartMode>("route_stop");
-  const [endMode, setEndMode] = useState<EndMode>("round_trip");
+  const [endMode, setEndMode] = useState<EndMode>("last_stop");
   const [startStopId, setStartStopId] = useState("");
   const [endStopId, setEndStopId] = useState("");
   const [currentLocation, setCurrentLocation] = useState<CurrentLocation>();
@@ -499,7 +499,11 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
               (parsed.curbsideRouting ? "curbside_strict" : "google_optimized"),
           );
           setStartMode(parsed.startMode || "route_stop");
-          setEndMode(parsed.endMode || "round_trip");
+          setEndMode(
+            !parsed.endMode || parsed.endMode === "round_trip"
+              ? "last_stop"
+              : parsed.endMode,
+          );
           setStartStopId(parsed.startStopId || "");
           setEndStopId(parsed.endStopId || "");
           setCurrentLocation(parsed.currentLocation);
@@ -1624,8 +1628,8 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                 </span>
                 <div className="grid grid-cols-3 rounded-md border border-line bg-panel-subtle p-1">
                   {[
-                    ["round_trip", "Start"],
-                    ["last_stop", "Last"],
+                    ["last_stop", "Open"],
+                    ["round_trip", "Return"],
                     ["selected_stop", "Choose"],
                   ].map(([value, label]) => (
                     <button

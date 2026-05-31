@@ -95,7 +95,7 @@ function getStopById(stops: CoordinateStop[], stopId: string | undefined) {
 function getRouteEndpoints({
   stops,
   startStopId,
-  endMode = "round_trip",
+  endMode = "last_stop",
   endStopId,
 }: Pick<OptimizeRequestOptions, "stops" | "startStopId" | "endMode" | "endStopId">) {
   const start = getStopById(stops, startStopId) ?? stops[0];
@@ -429,7 +429,9 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     : undefined;
 
   const payload = {
+    timeout: options.validateOnly ? "5s" : "20s",
     solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
+    searchMode: options.validateOnly ? "RETURN_FAST" : "CONSUME_ALL_AVAILABLE_TIME",
     populatePolylines: !options.validateOnly,
     populateTransitionPolylines: !options.validateOnly,
     ...(injectedSolutionConstraint ? { injectedSolutionConstraint } : {}),
