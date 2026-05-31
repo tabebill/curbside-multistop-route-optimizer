@@ -474,6 +474,34 @@ test("google optimized payload seeds Google but still asks Google to solve", () 
   );
 });
 
+test("curbside assisted payload uses side-of-road waypoints and seeded solve", () => {
+  const payload = buildOptimizeToursPayload({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "curbside_assisted",
+  }) as {
+    solvingMode?: string;
+    searchMode?: string;
+    injectedFirstSolutionRoutes?: unknown[];
+    injectedSolutionConstraint?: unknown;
+    model?: {
+      shipments?: Array<{
+        deliveries?: Array<{ arrivalWaypoint?: { sideOfRoad?: boolean } }>;
+      }>;
+    };
+  };
+
+  assert.equal(payload.solvingMode, "DEFAULT_SOLVE");
+  assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
+  assert(Array.isArray(payload.injectedFirstSolutionRoutes));
+  assert.equal(payload.injectedSolutionConstraint, undefined);
+  assert.equal(
+    payload.model?.shipments?.[0]?.deliveries?.[0]?.arrivalWaypoint?.sideOfRoad,
+    true,
+  );
+});
+
 test("validation payload does not lock Google to an injected solve route", () => {
   const payload = buildOptimizeToursPayload({
     stops: firstTwentySampleStops,

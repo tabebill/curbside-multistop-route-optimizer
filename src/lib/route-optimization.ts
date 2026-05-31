@@ -1474,8 +1474,8 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
   const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
-  const usesSeededGoogleSolve =
-    routeOptimizationMode === "google_optimized" && !options.validateOnly;
+  const usesSeededSolve =
+    routeOptimizationMode !== "curbside_strict" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
     stops,
@@ -1484,8 +1484,10 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesSeededGoogleSolve
-    ? orderDefaultRouteStops(unorderedShipmentStops, start, end)
+  const shipmentStops = usesSeededSolve
+    ? routeOptimizationMode === "curbside_assisted"
+      ? orderCurbsideStops(unorderedShipmentStops, start)
+      : orderDefaultRouteStops(unorderedShipmentStops, start, end)
     : usesStrictCurbsideSequence
       ? orderCurbsideStops(unorderedShipmentStops, start)
       : unorderedShipmentStops;
@@ -1497,7 +1499,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
-  const injectedFirstSolutionRoute = usesSeededGoogleSolve
+  const injectedFirstSolutionRoute = usesSeededSolve
     ? getSeedSolutionRoute(shipmentStops, tomorrow, endTime)
     : undefined;
 
