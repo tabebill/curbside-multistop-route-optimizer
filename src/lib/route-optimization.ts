@@ -236,6 +236,29 @@ function getDistance(
   return lat * lat + lng * lng;
 }
 
+function orderStopsByNearestStop(
+  stops: CoordinateStop[],
+  start: CoordinateStop | undefined,
+) {
+  const remaining = [...stops];
+  const ordered: CoordinateStop[] = [];
+  let cursor = start;
+
+  while (remaining.length) {
+    const nextIndex = remaining.reduce((bestIndex, stop, index) =>
+      getDistance(cursor, stop) < getDistance(cursor, remaining[bestIndex])
+        ? index
+        : bestIndex,
+    0);
+    const [nextStop] = remaining.splice(nextIndex, 1);
+
+    ordered.push(nextStop);
+    cursor = nextStop;
+  }
+
+  return ordered;
+}
+
 function orderVisitsByNearestStop<T extends { stopId: string }>(
   visits: T[],
   stops: CoordinateStop[],
@@ -432,10 +455,33 @@ function getInjectedSolutionConstraint(
   };
 }
 
+function getRefreshDetailsRoute(
+  shipmentStops: CoordinateStop[],
+  startTime: Date,
+  endTime: Date,
+) {
+  if (!shipmentStops.length) {
+    return undefined;
+  }
+
+  return {
+    vehicleIndex: 0,
+    vehicleStartTime: startTime.toISOString(),
+    vehicleEndTime: endTime.toISOString(),
+    visits: shipmentStops.map((_, index) => ({
+      shipmentIndex: index,
+      isPickup: false,
+      visitRequestIndex: 0,
+    })),
+  };
+}
+
 export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
   const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
+  const usesNearestSequenceRoute =
+    routeOptimizationMode === "google_optimized" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
     stops,
@@ -444,9 +490,11 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesStrictCurbsideSequence
-    ? orderCurbsideStops(unorderedShipmentStops, start)
-    : unorderedShipmentStops;
+  const shipmentStops = usesNearestSequenceRoute
+    ? orderStopsByNearestStop(unorderedShipmentStops, start)
+    : usesStrictCurbsideSequence
+      ? orderCurbsideStops(unorderedShipmentStops, start)
+      : unorderedShipmentStops;
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   tomorrow.setUTCHours(12, 0, 0, 0);
   const endTime = new Date(
@@ -455,11 +503,20 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
+  const refreshDetailsRoute = usesNearestSequenceRoute
+    ? getRefreshDetailsRoute(shipmentStops, tomorrow, endTime)
+    : undefined;
 
   const payload = {
     timeout: options.validateOnly ? "5s" : "20s",
-    solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
-    searchMode: options.validateOnly ? "RETURN_FAST" : "CONSUME_ALL_AVAILABLE_TIME",
+    ...(refreshDetailsRoute
+      ? { refreshDetailsRoutes: [refreshDetailsRoute] }
+      : {
+          solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
+          searchMode: options.validateOnly
+            ? "RETURN_FAST"
+            : "CONSUME_ALL_AVAILABLE_TIME",
+        }),
     populatePolylines: !options.validateOnly,
     populateTransitionPolylines: !options.validateOnly,
     ...(injectedSolutionConstraint ? { injectedSolutionConstraint } : {}),

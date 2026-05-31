@@ -56,6 +56,7 @@ export type OptimizedVisit = {
 };
 
 export type OptimizedRoute = {
+  algorithmVersion?: string;
   visitOrder: OptimizedVisit[];
   distanceMeters: number;
   durationSeconds: number;

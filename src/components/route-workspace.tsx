@@ -134,6 +134,7 @@ type CurrentLocation = {
 type StatusFilter = "all" | "disabled" | "repeat" | StopStatus;
 
 const workspaceStorageKey = "multi-stop-route-optimizer.workspace.v2";
+const routeAlgorithmVersion = "nearest-refresh-v1";
 const syncStopLimit = 100;
 const sampleRows = `address
 840 E 51 PL N TULSA 74126
@@ -508,7 +509,10 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
           setCurrentLocation(parsed.currentLocation);
           setStops(parsed.stops || []);
           setOptimizedRoute(
-            shouldMigrateRoundTrip ? undefined : parsed.optimizedRoute,
+            shouldMigrateRoundTrip ||
+              parsed.optimizedRoute?.algorithmVersion !== routeAlgorithmVersion
+              ? undefined
+              : parsed.optimizedRoute,
           );
         } catch {
           window.localStorage.removeItem(workspaceStorageKey);
@@ -1209,7 +1213,11 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
       throw new Error(getErrorMessage(data as OptimizeError, "Optimization failed"));
     }
 
-    const nextRoute = { ...(data as OptimizedRoute), mode: "sync" as const };
+    const nextRoute = {
+      ...(data as OptimizedRoute),
+      algorithmVersion: routeAlgorithmVersion,
+      mode: "sync" as const,
+    };
 
     setOptimizedRoute(nextRoute);
     setStops((current) => buildOrderedStops(current, nextRoute));
@@ -1287,6 +1295,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
       if ("status" in data && data.status === "completed") {
         const nextRoute = {
           ...data.route,
+          algorithmVersion: routeAlgorithmVersion,
           jobId: job.jobId,
           operationName: job.operationName,
           inputUri: job.inputUri,
