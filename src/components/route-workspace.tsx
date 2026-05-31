@@ -1005,6 +1005,19 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
       }
     }
 
+    const activeInvalidStops = nextStops.filter(
+      (stop) => stop.status === "invalid" && !stop.disabled,
+    );
+
+    if (activeInvalidStops.length) {
+      setNotice(
+        `${activeInvalidStops.length.toLocaleString()} invalid ${
+          activeInvalidStops.length === 1 ? "address is" : "addresses are"
+        } not included. Review them, accept Google's result, edit them, or disable them before optimizing.`,
+      );
+      return undefined;
+    }
+
     const nextCurrentLocation = await ensureCurrentLocation();
     const routeStopOptions = buildCoordinateStopOptions(nextStops);
     const nextStopOptions =
@@ -1878,14 +1891,29 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {metrics.invalid ? (
-                    <button
-                      type="button"
-                      onClick={reviewFirstInvalidStop}
-                      className="inline-flex h-10 min-w-28 items-center justify-center gap-2 border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:border-red-300"
-                    >
-                      <AlertTriangle className="h-4 w-4" />
-                      Review Invalid Addresses
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={reviewFirstInvalidStop}
+                        className="inline-flex h-10 min-w-28 items-center justify-center gap-2 border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:border-red-300"
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        Review Invalid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={acceptGoogleCandidatesForInvalidStops}
+                        disabled={isPending}
+                        className="inline-flex h-10 min-w-36 items-center justify-center gap-2 border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 hover:border-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Accept Google Results
+                      </button>
+                    </>
                   ) : null}
                   <button
                     type="button"
