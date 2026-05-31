@@ -1729,6 +1729,7 @@ function getDiagnosticScore(
 
   return {
     issueCount: diagnostics.issueCount,
+    nearestNeighborMissCount: diagnostics.nearestNeighborMissCount,
     longestLegMeters: diagnostics.longestLegMeters,
     score: scoreRouteQualityAware(ordered, start, end),
   };
@@ -1832,12 +1833,21 @@ function repairSuspiciousJumpDestinations(
       .sort((a, b) =>
         a.diagnostics.issueCount !== b.diagnostics.issueCount
           ? a.diagnostics.issueCount - b.diagnostics.issueCount
+          : a.diagnostics.nearestNeighborMissCount !==
+              b.diagnostics.nearestNeighborMissCount
+            ? a.diagnostics.nearestNeighborMissCount -
+              b.diagnostics.nearestNeighborMissCount
+            : a.diagnostics.longestLegMeters !== b.diagnostics.longestLegMeters
+              ? a.diagnostics.longestLegMeters - b.diagnostics.longestLegMeters
           : a.diagnostics.score - b.diagnostics.score,
       )[0];
 
     if (
       next &&
       (next.diagnostics.issueCount < currentScore.issueCount ||
+        next.diagnostics.nearestNeighborMissCount <
+          currentScore.nearestNeighborMissCount ||
+        next.diagnostics.longestLegMeters < currentScore.longestLegMeters ||
         next.diagnostics.score < currentScore.score)
     ) {
       best = next.item;
@@ -1935,6 +1945,67 @@ function orderByCoordinateSweep(
   });
 }
 
+function getMedianPositiveGap(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const gaps = sorted
+    .slice(1)
+    .map((value, index) => value - sorted[index])
+    .filter((gap) => gap > Number.EPSILON);
+
+  return getMedian(gaps);
+}
+
+function orderBySerpentineSweep(
+  stops: CoordinateStop[],
+  primary: "latitude" | "longitude",
+  direction: "asc" | "desc",
+) {
+  const secondary = primary === "latitude" ? "longitude" : "latitude";
+  const multiplier = direction === "asc" ? 1 : -1;
+  const sorted = [...stops].sort((a, b) => {
+    const primaryDelta = (a[primary] - b[primary]) * multiplier;
+
+    if (Math.abs(primaryDelta) > Number.EPSILON) {
+      return primaryDelta;
+    }
+
+    return a[secondary] - b[secondary];
+  });
+  const primaryValues = sorted.map((stop) => stop[primary]);
+  const primaryRange =
+    Math.max(...primaryValues) - Math.min(...primaryValues);
+  const medianPositiveGap = getMedianPositiveGap(primaryValues);
+  const fallbackBandSize = primaryRange / Math.max(2, Math.sqrt(stops.length) * 2);
+  const bandSize =
+    medianPositiveGap > 0
+      ? Math.max(medianPositiveGap / 2, fallbackBandSize / 4)
+      : fallbackBandSize;
+  const bands: CoordinateStop[][] = [];
+
+  for (const stop of sorted) {
+    const currentBand = bands.at(-1);
+    const firstInBand = currentBand?.[0];
+    const startsNewBand =
+      firstInBand &&
+      Math.abs(stop[primary] - firstInBand[primary]) > bandSize;
+
+    if (!currentBand || startsNewBand) {
+      bands.push([stop]);
+      continue;
+    }
+
+    currentBand.push(stop);
+  }
+
+  return bands.flatMap((band, index) =>
+    [...band].sort((a, b) =>
+      index % 2 === 0
+        ? a[secondary] - b[secondary]
+        : b[secondary] - a[secondary],
+    ),
+  );
+}
+
 function orderByPolarSweep(
   stops: CoordinateStop[],
   direction: "asc" | "desc",
@@ -2009,20 +2080,75 @@ function orderDefaultRouteStops(
     orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "desc"), start, end),
     orientRouteNearStart(orderByCoordinateSweep(stops, "longitude", "asc"), start, end),
     orientRouteNearStart(orderByCoordinateSweep(stops, "longitude", "desc"), start, end),
+    orientRouteNearStart(orderBySerpentineSweep(stops, "latitude", "asc"), start, end),
+    orientRouteNearStart(orderBySerpentineSweep(stops, "latitude", "desc"), start, end),
+    orientRouteNearStart(orderBySerpentineSweep(stops, "longitude", "asc"), start, end),
+    orientRouteNearStart(orderBySerpentineSweep(stops, "longitude", "desc"), start, end),
     orientRouteNearStart(orderByPolarSweep(stops, "asc"), start, end),
     orientRouteNearStart(orderByPolarSweep(stops, "desc"), start, end),
   ]);
-  const improvedCandidates = candidates.map((candidate) =>
-    improveRoute(candidate, start, end),
-  );
+  const candidatesToImprove =
+    stops.length > 1000
+      ? [...candidates]
+          .map((candidate) => ({
+            candidate,
+            score: scoreRouteQualityAware(candidate, start, end),
+          }))
+          .sort((a, b) => a.score - b.score)
+          .slice(0, 6)
+          .map((item) => item.candidate)
+      : candidates;
+  const improvedCandidates = uniqueRouteCandidates([
+    ...candidates,
+    ...candidatesToImprove.map((candidate) => improveRoute(candidate, start, end)),
+  ]);
   const scoredCandidates = improvedCandidates.map((candidate) => ({
     candidate,
+    diagnostics: analyzeRouteQuality(
+      buildSyntheticVisitOrder(candidate, start, end),
+      candidate,
+      { start, end },
+    ),
     score: scoreRouteQualityAware(candidate, start, end),
   }));
 
-  return scoredCandidates.reduce((best, current) =>
-    current.score < best.score ? current : best,
-  ).candidate;
+  return scoredCandidates.reduce((best, current) => {
+    if (current.diagnostics.issueCount !== best.diagnostics.issueCount) {
+      return current.diagnostics.issueCount < best.diagnostics.issueCount
+        ? current
+        : best;
+    }
+
+    const currentFaceReentries =
+      current.diagnostics.streetFaceReentryCount ?? Number.POSITIVE_INFINITY;
+    const bestFaceReentries =
+      best.diagnostics.streetFaceReentryCount ?? Number.POSITIVE_INFINITY;
+
+    if (currentFaceReentries !== bestFaceReentries) {
+      return currentFaceReentries < bestFaceReentries ? current : best;
+    }
+
+    const currentFaceBacktracks =
+      current.diagnostics.streetFaceBacktrackCount ?? Number.POSITIVE_INFINITY;
+    const bestFaceBacktracks =
+      best.diagnostics.streetFaceBacktrackCount ?? Number.POSITIVE_INFINITY;
+
+    if (currentFaceBacktracks !== bestFaceBacktracks) {
+      return currentFaceBacktracks < bestFaceBacktracks ? current : best;
+    }
+
+    if (
+      current.diagnostics.nearestNeighborMissCount !==
+      best.diagnostics.nearestNeighborMissCount
+    ) {
+      return current.diagnostics.nearestNeighborMissCount <
+        best.diagnostics.nearestNeighborMissCount
+        ? current
+        : best;
+    }
+
+    return current.score < best.score ? current : best;
+  }).candidate;
 }
 
 export function buildLocalOptimizedStopSequenceForTesting(options: {

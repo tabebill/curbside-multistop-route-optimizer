@@ -1064,4 +1064,5 @@ test("default route handles large synthetic imports without dropping stops", () 
 
   assert.equal(ordered.length, stops.length);
   assert.equal(new Set(ordered.map((stop) => stop.id)).size, stops.length);
+  assertCleanRouteContinuity(ordered, 0.9);
 });
