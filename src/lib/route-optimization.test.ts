@@ -37,9 +37,33 @@ const firstTwentySampleStops: TestStop[] = [
   longitude,
 }));
 
-function inputOrders(stops: CoordinateStop[]) {
+const firstThirtySampleStops: TestStop[] = [
+  ...firstTwentySampleStops,
+  ["21", 21, "7524 N OWASSO PL E TULSA 74126, Tulsa", 36.263089, -95.975367],
+  ["22", 22, "7517 N OWASSO PL E TULSA 74126, Tulsa", 36.262895, -95.974664],
+  ["23", 23, "7523 N OWASSO PL E TULSA 74126, Tulsa", 36.263142, -95.974662],
+  ["24", 24, "7530 N OWASSO PL E TULSA 74126, Tulsa", 36.263352, -95.975135],
+  ["25", 25, "7536 N OWASSO PL E TULSA 74126, Tulsa", 36.263561, -95.975136],
+  ["26", 26, "7529 N OWASSO PL E TULSA 74126, Tulsa", 36.263351, -95.974684],
+  ["27", 27, "7535 N OWASSO PL E TULSA 74126, Tulsa", 36.263637, -95.974662],
+  ["28", 28, "7507 N OWASSO PL E TULSA 74126, Tulsa", 36.26248, -95.974689],
+  ["29", 29, "7541 N OWASSO PL E TULSA 74126-1205, Tulsa", 36.263826, -95.974664],
+  ["30", 30, "7542 N PEORIA AV E TULSA 74126, Tulsa", 36.263826, -95.974012],
+].map((stop) =>
+  Array.isArray(stop)
+    ? {
+        id: stop[0],
+        inputOrder: stop[1],
+        label: stop[2],
+        latitude: stop[3],
+        longitude: stop[4],
+      }
+    : stop,
+);
+
+function inputOrders(stops: CoordinateStop[], referenceStops = firstTwentySampleStops) {
   const inputOrderById = new Map(
-    firstTwentySampleStops.map((stop) => [stop.id, stop.inputOrder]),
+    referenceStops.map((stop) => [stop.id, stop.inputOrder]),
   );
 
   return stops.map((stop) => inputOrderById.get(stop.id));
@@ -75,6 +99,20 @@ test("default route keeps nearby sample-address stops together before moving to 
       ordered.findIndex((stop) => stop.id === "15"),
     "nearby E 73 stops should be routed before the farther Owasso block",
   );
+});
+
+test("default route matches real sample-address first thirty neighborhood progression", () => {
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: firstThirtySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+
+  assert.deepEqual(inputOrders(ordered, firstThirtySampleStops), [
+    1, 2, 3, 4, 5, 7, 6, 8, 9, 13, 10, 12, 11, 20, 14, 15, 25, 24, 21, 19,
+    18, 17, 28, 16, 22, 23, 26, 27, 29, 30,
+  ]);
 });
 
 test("default route does not let input order scatter compact clusters", () => {
