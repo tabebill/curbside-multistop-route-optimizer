@@ -286,6 +286,50 @@ function formatDuration(seconds: number) {
   return `${hours} hr ${minutes} min`;
 }
 
+function formatPercent(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${Math.round(value * 100)}%`;
+}
+
+function getLongestLegRatio(route: OptimizedRoute) {
+  const diagnostics = route.qualityDiagnostics;
+
+  if (!diagnostics) {
+    return 0;
+  }
+
+  const baseline = Math.max(diagnostics.medianLegMeters, 80);
+
+  return baseline > 0 ? diagnostics.longestLegMeters / baseline : 0;
+}
+
+function getRouteQualityTone(route: OptimizedRoute): "default" | "warning" | "danger" {
+  const diagnostics = route.qualityDiagnostics;
+
+  if (!diagnostics) {
+    return "default";
+  }
+
+  if (
+    diagnostics.issueCount > 0 ||
+    (diagnostics.nearestNeighborMatchRate ?? 1) < 0.9 ||
+    (diagnostics.streetFaceReentryCount ?? 0) > 0 ||
+    (diagnostics.streetFaceBacktrackCount ?? 0) > 0 ||
+    getLongestLegRatio(route) > 20
+  ) {
+    return "warning";
+  }
+
+  return "default";
+}
+
+function getRouteQualityLabel(route: OptimizedRoute) {
+  return getRouteQualityTone(route) === "warning" ? "Review" : "Clean";
+}
+
 function getErrorMessage(data: OptimizeError, fallback: string) {
   if (typeof data.error === "string") {
     return data.error;
@@ -1849,31 +1893,59 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                   }
                 />
                 <Metric
-                  label="Route Review"
-                  value={(
-                    optimizedRoute.qualityDiagnostics?.issueCount ?? 0
-                  ).toLocaleString()}
-                  tone={
-                    optimizedRoute.qualityDiagnostics?.issueCount
-                      ? "warning"
-                      : "default"
-                  }
+                  label="Quality"
+                  value={getRouteQualityLabel(optimizedRoute)}
+                  tone={getRouteQualityTone(optimizedRoute)}
                 />
               </div>
             ) : null}
 
-            {optimizedRoute?.qualityDiagnostics?.issueCount ? (
-              <div className="border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <div className="font-semibold">
-                  Review {optimizedRoute.qualityDiagnostics.issueCount.toLocaleString()} route
-                  jump
-                  {optimizedRoute.qualityDiagnostics.issueCount === 1 ? "" : "s"}
+            {optimizedRoute?.qualityDiagnostics ? (
+              <div
+                className={classNames(
+                  "border p-3 text-sm",
+                  getRouteQualityTone(optimizedRoute) === "warning"
+                    ? "border-amber-200 bg-amber-50 text-amber-900"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-900",
+                )}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="font-semibold">
+                    Route quality {getRouteQualityLabel(optimizedRoute).toLowerCase()}
+                  </div>
+                  {optimizedRoute.qualityFallback?.applied ? (
+                    <span className="text-xs font-semibold uppercase">
+                      Auto repaired
+                    </span>
+                  ) : null}
                 </div>
-                <div className="mt-1 text-xs">
-                  Longest leg:{" "}
-                  {formatDistance(optimizedRoute.qualityDiagnostics.longestLegMeters)}.
-                  Median leg:{" "}
-                  {formatDistance(optimizedRoute.qualityDiagnostics.medianLegMeters)}.
+                <div className="mt-2 grid gap-2 text-xs sm:grid-cols-5">
+                  <span>
+                    Jumps:{" "}
+                    {optimizedRoute.qualityDiagnostics.suspiciousJumpCount.toLocaleString()}
+                  </span>
+                  <span>
+                    Continuity:{" "}
+                    {formatPercent(
+                      optimizedRoute.qualityDiagnostics.nearestNeighborMatchRate,
+                    )}
+                  </span>
+                  <span>
+                    Reentries:{" "}
+                    {(
+                      optimizedRoute.qualityDiagnostics.streetFaceReentryCount ?? 0
+                    ).toLocaleString()}
+                  </span>
+                  <span>
+                    Backtracks:{" "}
+                    {(
+                      optimizedRoute.qualityDiagnostics.streetFaceBacktrackCount ?? 0
+                    ).toLocaleString()}
+                  </span>
+                  <span>
+                    Longest:{" "}
+                    {formatDistance(optimizedRoute.qualityDiagnostics.longestLegMeters)}
+                  </span>
                 </div>
               </div>
             ) : null}

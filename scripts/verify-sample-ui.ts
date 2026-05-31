@@ -63,13 +63,17 @@ async function main() {
     const hasLastSequence = new RegExp(`\\n${addresses.length}\\n`).test(
       navigationText,
     );
-    const routeReview = /Review \d+ route/.test(bodyText);
+    const routeQualityClean = bodyText.includes("Route quality clean");
+    const routeQualityReview = bodyText.includes("Route quality review");
+    const hasContinuity = /Continuity:\s+100%/.test(bodyText);
     const result = {
       sampleFile,
       addressCount: addresses.length,
       uiStopCount: stopCount,
       hasLastSequence,
-      routeReview,
+      routeQualityClean,
+      routeQualityReview,
+      hasContinuity,
       consoleErrors: consoleErrors.slice(0, 5),
     };
 
@@ -85,8 +89,8 @@ async function main() {
       throw new Error("UI verification failed: navigation did not include the final sequence.");
     }
 
-    if (routeReview) {
-      throw new Error("UI verification failed: route review warning is visible.");
+    if (!routeQualityClean || routeQualityReview || !hasContinuity) {
+      throw new Error("UI verification failed: route quality summary is not clean.");
     }
 
     if (consoleErrors.length) {
