@@ -3,7 +3,7 @@ import {
   buildLocalOptimizedStopSequenceForTesting,
   normalizeOptimizeToursResponse,
 } from "@/lib/route-optimization";
-import type { CoordinateStop, RouteOptimizationMode } from "@/lib/route-types";
+import type { CoordinateStop, EndMode, RouteOptimizationMode } from "@/lib/route-types";
 
 function getStopCount() {
   const value = Number(process.env.ROUTE_BENCHMARK_STOPS ?? 2000);
@@ -29,6 +29,14 @@ function getRouteOptimizationMode(): RouteOptimizationMode {
   return value === "curbside_assisted" || value === "curbside_strict"
     ? value
     : "google_optimized";
+}
+
+function getEndMode(): EndMode {
+  const value = process.env.ROUTE_BENCHMARK_END_MODE;
+
+  return value === "round_trip" || value === "selected_stop"
+    ? value
+    : "last_stop";
 }
 
 function buildSyntheticStops(count: number): CoordinateStop[] {
@@ -75,13 +83,16 @@ function shuffleStops<T>(items: T[], seed: number) {
 function benchmarkStops(
   stops: CoordinateStop[],
   startStopId: string,
+  endMode: EndMode,
+  endStopId: string,
   routeOptimizationMode: RouteOptimizationMode,
 ) {
   const startedAt = performance.now();
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops,
     startStopId,
-    endMode: "last_stop",
+    endMode,
+    endStopId,
     routeOptimizationMode,
   });
   const elapsedMs = performance.now() - startedAt;
@@ -110,15 +121,19 @@ function benchmarkStops(
 const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
 const routeOptimizationMode = getRouteOptimizationMode();
+const endMode = getEndMode();
 const shuffleCount = getShuffleCount();
 const stops = buildSyntheticStops(stopCount);
 const startStopId = stops[0].id;
+const endStopId = process.env.ROUTE_BENCHMARK_END_STOP_ID ?? stops.at(-1)!.id;
 const runs = Array.from({ length: shuffleCount }, (_, index) => {
   const seed = index + 1;
   const runStops = seed === 1 ? stops : shuffleStops(stops, seed);
   const { ordered, uniqueStops, elapsedMs, route } = benchmarkStops(
     runStops,
     startStopId,
+    endMode,
+    endStopId,
     routeOptimizationMode,
   );
   const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
@@ -142,6 +157,8 @@ const result = {
   maxSuspiciousJumps,
   shuffleCount,
   startStopId,
+  endMode,
+  endStopId: endMode === "selected_stop" ? endStopId : undefined,
   runs,
 };
 
