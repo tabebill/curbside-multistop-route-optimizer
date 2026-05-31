@@ -671,7 +671,7 @@ test("quality fallback rejects routes between the old and strict continuity gate
   );
 });
 
-test("auto fallback rejects barely acceptable generic numbering gaps", () => {
+test("auto keeps a clean Google route with acceptable continuity", () => {
   const stops: CoordinateStop[] = Array.from({ length: 16 }, (_, index) => ({
     id: `generic-${index}`,
     label: `Generic point ${index}`,
@@ -702,18 +702,17 @@ test("auto fallback rejects barely acceptable generic numbering gaps", () => {
 
   assert.deepEqual(
     route.visitOrder.map((visit) => visit.stopId),
-    stops.map((stop) => stop.id),
+    [
+      "generic-0",
+      "generic-1",
+      "generic-4",
+      "generic-2",
+      "generic-3",
+      ...Array.from({ length: 11 }, (_, index) => `generic-${index + 5}`),
+    ],
   );
-  assert.equal(route.qualityFallback?.applied, true);
-  assert.equal(
-    route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMissCount,
-    1,
-  );
-  assert(
-    (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
-      0) >= 0.9,
-  );
-  assert.equal(route.qualityDiagnostics?.nearestNeighborMissCount, 0);
+  assert.equal(route.qualityFallback, undefined);
+  assert.equal(route.qualityDiagnostics?.nearestNeighborMissCount, 1);
 });
 
 test("quality fallback repairs Google order before falling back to seeded input order", () => {
@@ -793,7 +792,7 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 });
 
-test("quality fallback rejects same-street side reentry", () => {
+test("curbside assisted fallback rejects same-street side reentry", () => {
   const shipmentStops = firstTwentySampleStops.slice(1);
   const shipmentIndexById = new Map(
     shipmentStops.map((stop, shipmentIndex) => [stop.id, shipmentIndex]),
@@ -830,6 +829,7 @@ test("quality fallback rejects same-street side reentry", () => {
     },
     shipmentStops,
     { start: firstTwentySampleStops[0] },
+    { routeOptimizationMode: "curbside_assisted" },
   );
 
   assert.deepEqual(
@@ -922,7 +922,7 @@ test("default route groups both sides of the same curb before leaving the street
   assert.equal(diagnostics?.suspiciousJumpCount, 0);
 });
 
-test("quality fallback rejects same-curb house-number backtracking", () => {
+test("curbside assisted fallback rejects same-curb house-number backtracking", () => {
   const stops: CoordinateStop[] = [
     { id: "100", label: "100 E ORDER ST TULSA 74103", latitude: 36, longitude: -96 },
     { id: "102", label: "102 E ORDER ST TULSA 74103", latitude: 36, longitude: -95.9998 },
@@ -943,6 +943,8 @@ test("quality fallback rejects same-curb house-number backtracking", () => {
       ],
     },
     stops,
+    undefined,
+    { routeOptimizationMode: "curbside_assisted" },
   );
 
   assert.deepEqual(
@@ -957,7 +959,7 @@ test("quality fallback rejects same-curb house-number backtracking", () => {
   assert.equal(route.qualityFallback?.applied, true);
 });
 
-test("auto fallback repairs scattered street-face route returns", () => {
+test("auto keeps a clean Google route despite street-face returns", () => {
   const shipmentStops = firstTwentySampleStops.slice(1);
   const shipmentIndexById = new Map(
     shipmentStops.map((stop, shipmentIndex) => [stop.id, shipmentIndex]),
@@ -996,23 +998,33 @@ test("auto fallback repairs scattered street-face route returns", () => {
     { start: firstTwentySampleStops[0] },
     { routeOptimizationMode: "auto" },
   );
-  const expected = buildLocalOptimizedStopSequenceForTesting({
-    stops: firstTwentySampleStops,
-    startStopId: "1",
-    endMode: "last_stop",
-    routeOptimizationMode: "auto",
-  }).map((stop) => stop.id);
-
   assert.deepEqual(
     route.visitOrder.map((visit) => visit.stopId),
-    expected,
+    [
+      "1",
+      "2",
+      "3",
+      "4",
+      "11",
+      "6",
+      "5",
+      "7",
+      "8",
+      "9",
+      "13",
+      "10",
+      "12",
+      "20",
+      "14",
+      "15",
+      "19",
+      "16",
+      "18",
+      "17",
+    ],
   );
-  assert.equal(
-    route.qualityFallback?.originalQualityDiagnostics?.streetFaceReentryCount,
-    2,
-  );
-  assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
-  assert.equal(route.qualityFallback?.applied, true);
+  assert.equal(route.qualityFallback, undefined);
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
 });
 
 test("google optimized payload lets Google solve without a local seed", () => {

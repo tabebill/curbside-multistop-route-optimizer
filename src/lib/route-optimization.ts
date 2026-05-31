@@ -2882,7 +2882,12 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     };
   }
 
-  if (routeOptimizationMode === "google_optimized") {
+  if (
+    routeOptimizationMode === "google_optimized" ||
+    (routeOptimizationMode === "auto" &&
+      route.qualityDiagnostics?.suspiciousJumpCount === 0 &&
+      (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9)
+  ) {
     return route;
   }
 
