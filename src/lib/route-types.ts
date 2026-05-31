@@ -55,6 +55,26 @@ export type OptimizedVisit = {
   role?: "start" | "stop" | "end";
 };
 
+export type RouteQualityIssue = {
+  type: "suspicious_jump";
+  fromStopId: string;
+  toStopId: string;
+  fromSequence: number;
+  toSequence: number;
+  distanceMeters: number;
+  nearerLaterStopCount: number;
+  nearestLaterStopId?: string;
+  nearestLaterDistanceMeters?: number;
+};
+
+export type RouteQualityDiagnostics = {
+  issueCount: number;
+  suspiciousJumpCount: number;
+  medianLegMeters: number;
+  longestLegMeters: number;
+  issues: RouteQualityIssue[];
+};
+
 export type OptimizedRoute = {
   algorithmVersion?: string;
   visitOrder: OptimizedVisit[];
@@ -68,6 +88,7 @@ export type OptimizedRoute = {
   operationName?: string;
   inputUri?: string;
   outputUri?: string;
+  qualityDiagnostics?: RouteQualityDiagnostics;
 };
 
 export type BatchOptimizationJob = {

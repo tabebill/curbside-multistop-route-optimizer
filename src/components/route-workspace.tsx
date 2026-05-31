@@ -1808,7 +1808,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
             </div>
 
             {optimizedRoute ? (
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-4">
                 <Metric
                   label="Route Distance"
                   value={formatDistance(optimizedRoute.distanceMeters)}
@@ -1824,6 +1824,33 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
                     optimizedRoute.skippedShipmentCount ? "warning" : "default"
                   }
                 />
+                <Metric
+                  label="Route Review"
+                  value={(
+                    optimizedRoute.qualityDiagnostics?.issueCount ?? 0
+                  ).toLocaleString()}
+                  tone={
+                    optimizedRoute.qualityDiagnostics?.issueCount
+                      ? "warning"
+                      : "default"
+                  }
+                />
+              </div>
+            ) : null}
+
+            {optimizedRoute?.qualityDiagnostics?.issueCount ? (
+              <div className="border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="font-semibold">
+                  Review {optimizedRoute.qualityDiagnostics.issueCount.toLocaleString()} route
+                  jump
+                  {optimizedRoute.qualityDiagnostics.issueCount === 1 ? "" : "s"}
+                </div>
+                <div className="mt-1 text-xs">
+                  Longest leg:{" "}
+                  {formatDistance(optimizedRoute.qualityDiagnostics.longestLegMeters)}.
+                  Median leg:{" "}
+                  {formatDistance(optimizedRoute.qualityDiagnostics.medianLegMeters)}.
+                </div>
               </div>
             ) : null}
 

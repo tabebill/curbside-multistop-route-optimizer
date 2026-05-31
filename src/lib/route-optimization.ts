@@ -2,6 +2,8 @@ import type {
   CoordinateStop,
   EndMode,
   OptimizedRoute,
+  OptimizedVisit,
+  RouteQualityDiagnostics,
   RouteOptimizationMode,
 } from "@/lib/route-types";
 import { currentLocationStopId } from "@/lib/route-types";
@@ -337,6 +339,120 @@ function getStopSequenceMeters(
     .filter((stop): stop is CoordinateStop => Boolean(stop));
 
   return getPathMeters(path);
+}
+
+function getCoordinateForVisit(
+  visit: Pick<OptimizedVisit, "stopId">,
+  stopsById: Map<string, CoordinateStop>,
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+) {
+  if (visit.stopId === endpoints?.start?.id) {
+    return endpoints.start;
+  }
+
+  if (visit.stopId === endpoints?.end?.id) {
+    return endpoints.end;
+  }
+
+  return stopsById.get(visit.stopId);
+}
+
+function getMedian(values: number[]) {
+  if (!values.length) {
+    return 0;
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2
+    ? sorted[midpoint]
+    : (sorted[midpoint - 1] + sorted[midpoint]) / 2;
+}
+
+function analyzeRouteQuality(
+  visitOrder: OptimizedVisit[],
+  shipmentStops: CoordinateStop[],
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+): RouteQualityDiagnostics {
+  const stopsById = new Map(shipmentStops.map((stop) => [stop.id, stop]));
+  const legs = visitOrder
+    .map((visit, index) => {
+      if (!index) {
+        return undefined;
+      }
+
+      const previousVisit = visitOrder[index - 1];
+      const previousStop = getCoordinateForVisit(previousVisit, stopsById, endpoints);
+      const stop = getCoordinateForVisit(visit, stopsById, endpoints);
+
+      if (!previousStop || !stop) {
+        return undefined;
+      }
+
+      return {
+        fromVisit: previousVisit,
+        toVisit: visit,
+        fromStop: previousStop,
+        distanceMeters: getHaversineMeters(previousStop, stop),
+      };
+    })
+    .filter((leg): leg is NonNullable<typeof leg> => Boolean(leg));
+  const legDistances = legs.map((leg) => leg.distanceMeters);
+  const medianLegMeters = getMedian(legDistances);
+  const issues = legs.flatMap((leg, legIndex) => {
+    if (leg.distanceMeters <= 805) {
+      return [];
+    }
+
+    const laterVisits = visitOrder.slice(legIndex + 2);
+    const nearerLaterStops = laterVisits
+      .map((visit) => {
+        const stop = getCoordinateForVisit(visit, stopsById, endpoints);
+
+        return stop
+          ? {
+              visit,
+              distanceMeters: getHaversineMeters(leg.fromStop, stop),
+            }
+          : undefined;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .filter((item) => item.distanceMeters < leg.distanceMeters * 0.4)
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    if (!nearerLaterStops.length) {
+      return [];
+    }
+
+    return [
+      {
+        type: "suspicious_jump" as const,
+        fromStopId: leg.fromVisit.stopId,
+        toStopId: leg.toVisit.stopId,
+        fromSequence: leg.fromVisit.sequence,
+        toSequence: leg.toVisit.sequence,
+        distanceMeters: Math.round(leg.distanceMeters),
+        nearerLaterStopCount: nearerLaterStops.length,
+        nearestLaterStopId: nearerLaterStops[0].visit.stopId,
+        nearestLaterDistanceMeters: Math.round(nearerLaterStops[0].distanceMeters),
+      },
+    ];
+  });
+
+  return {
+    issueCount: issues.length,
+    suspiciousJumpCount: issues.length,
+    medianLegMeters: Math.round(medianLegMeters),
+    longestLegMeters: Math.round(Math.max(0, ...legDistances)),
+    issues,
+  };
 }
 
 function estimateDurationSeconds(distanceMeters: number) {
@@ -1111,5 +1227,6 @@ export function normalizeOptimizeToursResponse(
       data.metrics?.skippedMandatoryShipmentCount ??
       0,
     validationErrors: data.validationErrors ?? [],
+    qualityDiagnostics: analyzeRouteQuality(visitOrder, shipmentStops, endpoints),
   };
 }

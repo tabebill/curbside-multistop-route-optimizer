@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildLocalOptimizedStopSequenceForTesting,
+  normalizeOptimizeToursResponse,
 } from "@/lib/route-optimization";
 import type { CoordinateStop } from "@/lib/route-types";
 
@@ -205,4 +206,56 @@ test("2-opt improvement does not make a nearest-next route worse", () => {
     squaredRouteDistance(improved) <= squaredRouteDistance(nearestOnly),
     "local optimization should not increase coordinate route length",
   );
+});
+
+test("route quality diagnostics flag long jumps that skip nearer later stops", () => {
+  const stops: CoordinateStop[] = [
+    { id: "near-1", label: "Near 1", latitude: 36, longitude: -96 },
+    { id: "near-2", label: "Near 2", latitude: 36.0001, longitude: -96.0001 },
+    { id: "near-3", label: "Near 3", latitude: 36.0002, longitude: -96.0002 },
+    { id: "far", label: "Far", latitude: 36.1, longitude: -96.1 },
+  ];
+  const route = normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 3 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 2 },
+          ],
+        },
+      ],
+    },
+    stops,
+  );
+
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 1);
+  assert.equal(route.qualityDiagnostics?.issues[0].fromStopId, "near-1");
+  assert.equal(route.qualityDiagnostics?.issues[0].toStopId, "far");
+  assert.equal(route.qualityDiagnostics?.issues[0].nearestLaterStopId, "near-2");
+});
+
+test("route quality diagnostics stay clean for optimized first twenty sample stops", () => {
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const shipmentStops = ordered.slice(1);
+  const route = normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: ordered[0] },
+  );
+
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
 });
