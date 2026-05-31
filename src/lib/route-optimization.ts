@@ -933,7 +933,7 @@ function improveRoute(
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
-  return repairSuspiciousJumps(
+  return repairSuspiciousJumpDestinations(
     improveRouteWithRelocate(
       improveRouteWithTwoOpt(ordered, start, end),
       start,
@@ -944,7 +944,60 @@ function improveRoute(
   );
 }
 
-function repairSuspiciousJumps(
+function getBestInsertionIndex(
+  ordered: CoordinateStop[],
+  stop: CoordinateStop,
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  let bestIndex = ordered.length;
+  let bestCost = Number.POSITIVE_INFINITY;
+
+  for (let insertIndex = 0; insertIndex <= ordered.length; insertIndex += 1) {
+    const before = getRouteItem(ordered, insertIndex - 1, start, end);
+    const after = getRouteItem(ordered, insertIndex, start, end);
+    const removedCost = after ? getHaversineMeters(before, after) : 0;
+    const insertionCost =
+      getHaversineMeters(before, stop) +
+      getHaversineMeters(stop, after) -
+      removedCost;
+
+    if (insertionCost < bestCost) {
+      bestCost = insertionCost;
+      bestIndex = insertIndex;
+    }
+  }
+
+  return bestIndex;
+}
+
+function getNearestStopIndex(stops: CoordinateStop[], target: CoordinateStop) {
+  return stops.reduce((bestIndex, stop, index) =>
+    getHaversineMeters(target, stop) < getHaversineMeters(target, stops[bestIndex])
+      ? index
+      : bestIndex,
+  0);
+}
+
+function getDiagnosticScore(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  const diagnostics = analyzeRouteQuality(
+    buildSyntheticVisitOrder(ordered, start, end),
+    ordered,
+    { start, end },
+  );
+
+  return {
+    issueCount: diagnostics.issueCount,
+    longestLegMeters: diagnostics.longestLegMeters,
+    score: scoreRouteQualityAware(ordered, start, end),
+  };
+}
+
+function repairSuspiciousJumpDestinations(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
@@ -959,26 +1012,52 @@ function repairSuspiciousJumps(
     );
     const issue = diagnostics.issues[0];
 
-    if (!issue?.nearestLaterStopId) {
+    if (!issue) {
       break;
     }
 
-    const fromIndex = best.findIndex((stop) => stop.id === issue.fromStopId);
-    const moveIndex = best.findIndex((stop) => stop.id === issue.nearestLaterStopId);
+    const moveIndex = best.findIndex((stop) => stop.id === issue.toStopId);
 
-    if (fromIndex < 0 || moveIndex < 0 || moveIndex <= fromIndex + 1) {
+    if (moveIndex < 0) {
       break;
     }
 
     const candidate = [...best];
     const [moved] = candidate.splice(moveIndex, 1);
-    candidate.splice(fromIndex + 1, 0, moved);
+    const insertionCandidates: CoordinateStop[][] = [];
+    const routeCostInsertIndex = getBestInsertionIndex(candidate, moved, start, end);
+    const routeCostCandidate = [...candidate];
+    routeCostCandidate.splice(routeCostInsertIndex, 0, moved);
+    insertionCandidates.push(routeCostCandidate);
+
+    if (candidate.length) {
+      const nearestIndex = getNearestStopIndex(candidate, moved);
+      const beforeNearestCandidate = [...candidate];
+      const afterNearestCandidate = [...candidate];
+
+      beforeNearestCandidate.splice(nearestIndex, 0, moved);
+      afterNearestCandidate.splice(nearestIndex + 1, 0, moved);
+      insertionCandidates.push(beforeNearestCandidate, afterNearestCandidate);
+    }
+
+    const currentScore = getDiagnosticScore(best, start, end);
+    const next = insertionCandidates
+      .map((item) => ({
+        item,
+        diagnostics: getDiagnosticScore(item, start, end),
+      }))
+      .sort((a, b) =>
+        a.diagnostics.issueCount !== b.diagnostics.issueCount
+          ? a.diagnostics.issueCount - b.diagnostics.issueCount
+          : a.diagnostics.score - b.diagnostics.score,
+      )[0];
 
     if (
-      scoreRouteQualityAware(candidate, start, end) <
-      scoreRouteQualityAware(best, start, end)
+      next &&
+      (next.diagnostics.issueCount < currentScore.issueCount ||
+        next.diagnostics.score < currentScore.score)
     ) {
-      best = candidate;
+      best = next.item;
       continue;
     }
 
