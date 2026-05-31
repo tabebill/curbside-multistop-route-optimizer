@@ -700,6 +700,23 @@ function reverseSegment<T>(items: T[], startIndex: number, endIndex: number) {
   }
 }
 
+function getRouteItem(
+  ordered: CoordinateStop[],
+  index: number,
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (index < 0) {
+    return start;
+  }
+
+  if (index >= ordered.length) {
+    return end;
+  }
+
+  return ordered[index];
+}
+
 function improveRouteWithTwoOpt(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -742,6 +759,90 @@ function improveRouteWithTwoOpt(
   }
 
   return best;
+}
+
+function improveRouteWithRelocate(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 4) {
+    return ordered;
+  }
+
+  const best = [...ordered];
+  const maxPasses = ordered.length > 1000 ? 1 : 2;
+  const maxSpan = ordered.length > 1000 ? 90 : ordered.length;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let improved = false;
+
+    for (let fromIndex = 0; fromIndex < best.length; fromIndex += 1) {
+      const stop = best[fromIndex];
+      const beforeRemoved = getRouteItem(best, fromIndex - 1, start, end);
+      const afterRemoved = getRouteItem(best, fromIndex + 1, start, end);
+      const removalSavings =
+        getHaversineMeters(beforeRemoved, stop) +
+        getHaversineMeters(stop, afterRemoved) -
+        getHaversineMeters(beforeRemoved, afterRemoved);
+      const minInsertIndex = Math.max(0, fromIndex - maxSpan);
+      const maxInsertIndex = Math.min(best.length, fromIndex + maxSpan);
+      let bestInsertIndex = fromIndex;
+      let bestGain = 0;
+
+      for (let insertIndex = minInsertIndex; insertIndex <= maxInsertIndex; insertIndex += 1) {
+        if (insertIndex === fromIndex || insertIndex === fromIndex + 1) {
+          continue;
+        }
+
+        const adjustedInsertIndex = insertIndex > fromIndex ? insertIndex - 1 : insertIndex;
+        const beforeInserted = getRouteItem(
+          best,
+          adjustedInsertIndex - 1,
+          start,
+          end,
+        );
+        const afterInserted = getRouteItem(best, adjustedInsertIndex, start, end);
+        const insertionCost =
+          getHaversineMeters(beforeInserted, stop) +
+          getHaversineMeters(stop, afterInserted) -
+          getHaversineMeters(beforeInserted, afterInserted);
+        const gain = removalSavings - insertionCost;
+
+        if (gain > bestGain + 0.5) {
+          bestGain = gain;
+          bestInsertIndex = insertIndex;
+        }
+      }
+
+      if (bestInsertIndex !== fromIndex) {
+        const [moved] = best.splice(fromIndex, 1);
+        const adjustedInsertIndex =
+          bestInsertIndex > fromIndex ? bestInsertIndex - 1 : bestInsertIndex;
+
+        best.splice(adjustedInsertIndex, 0, moved);
+        improved = true;
+      }
+    }
+
+    if (!improved) {
+      break;
+    }
+  }
+
+  return best;
+}
+
+function improveRoute(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  return improveRouteWithRelocate(
+    improveRouteWithTwoOpt(ordered, start, end),
+    start,
+    end,
+  );
 }
 
 function getCoordinateBounds(stops: CoordinateStop[]) {
@@ -905,7 +1006,7 @@ function orderDefaultRouteStops(
     orientRouteNearStart(orderByPolarSweep(stops, "desc"), start, end),
   ]);
   const improvedCandidates = candidates.map((candidate) =>
-    improveRouteWithTwoOpt(candidate, start, end),
+    improveRoute(candidate, start, end),
   );
 
   return improvedCandidates.reduce((best, candidate) =>

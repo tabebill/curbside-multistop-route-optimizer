@@ -182,6 +182,40 @@ test("default route handles inner-pocket stops without leaving them scattered la
   );
 });
 
+test("default route pulls a late nearby stop back into its local neighborhood", () => {
+  const nearbyCluster = Array.from({ length: 8 }, (_, index) => ({
+    id: `near-${index}`,
+    label: `Near ${index}`,
+    latitude: 36 + index * 0.00012,
+    longitude: -96 + index * 0.00012,
+  }));
+  const farCluster = Array.from({ length: 12 }, (_, index) => ({
+    id: `far-${index}`,
+    label: `Far ${index}`,
+    latitude: 36.1 + index * 0.00012,
+    longitude: -96.1 + index * 0.00012,
+  }));
+  const misplacedNearbyStop = {
+    id: "near-late",
+    label: "Near Late",
+    latitude: 36.00018,
+    longitude: -96.00018,
+  };
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: [...nearbyCluster, ...farCluster, misplacedNearbyStop],
+    startStopId: "near-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const nearLateIndex = ordered.findIndex((stop) => stop.id === "near-late");
+  const firstFarIndex = ordered.findIndex((stop) => stop.id.startsWith("far-"));
+
+  assert(
+    nearLateIndex > 0 && nearLateIndex < firstFarIndex,
+    "a nearby stop that appears late in input should be routed before moving to far stops",
+  );
+});
+
 test("2-opt improvement does not make a nearest-next route worse", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "Start", latitude: 0, longitude: 0 },
