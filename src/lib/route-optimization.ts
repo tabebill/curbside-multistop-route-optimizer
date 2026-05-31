@@ -436,6 +436,8 @@ function analyzeRouteQuality(
   const orderedStops = visitOrder
     .map((visit) => getCoordinateForVisit(visit, stopsById, endpoints))
     .filter((stop): stop is CoordinateStop => Boolean(stop));
+  const orderedShipmentStops =
+    visitOrder[0]?.role === "start" ? orderedStops.slice(1) : orderedStops;
   const issues = legs.flatMap((leg, legIndex) => {
     if (leg.distanceMeters <= 805) {
       return [];
@@ -491,8 +493,8 @@ function analyzeRouteQuality(
       : 1,
     nearestNeighborMatchCount,
     nearestNeighborMissCount,
-    streetFaceReentryCount: getStreetFaceReentryCount(orderedStops),
-    streetFaceBacktrackCount: getStreetFaceBacktrackCount(orderedStops),
+    streetFaceReentryCount: getStreetFaceReentryCount(orderedShipmentStops),
+    streetFaceBacktrackCount: getStreetFaceBacktrackCount(orderedShipmentStops),
     issues,
   };
 }
@@ -802,7 +804,9 @@ function getStreetFaceBacktrackCount(ordered: CoordinateStop[]) {
       !parsed ||
       !previous ||
       parsed.streetKey !== previous.streetKey ||
-      parsed.side !== previous.side
+      parsed.side !== previous.side ||
+      getHaversineMeters(parsed.stop, previous.stop) > 420 ||
+      Math.abs(parsed.houseNumber - previous.houseNumber) > 420
     ) {
       previous = parsed;
       direction = 0;
@@ -1330,10 +1334,18 @@ function improveRoute(
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
-  return repairSuspiciousJumpDestinations(
-    improveRouteWithBlockRelocate(
-      improveRouteWithRelocate(
-        improveRouteWithTwoOpt(ordered, start, end),
+  return repairStreetFaceBacktracking(
+    repairStreetReentries(
+      repairSuspiciousJumpDestinations(
+        improveRouteWithBlockRelocate(
+          improveRouteWithRelocate(
+            improveRouteWithTwoOpt(ordered, start, end),
+            start,
+            end,
+          ),
+          start,
+          end,
+        ),
         start,
         end,
       ),
@@ -1343,6 +1355,179 @@ function improveRoute(
     start,
     end,
   );
+}
+
+function getStreetKey(stop: CoordinateStop) {
+  return parseStreetStop(stop)?.streetKey;
+}
+
+function findContiguousStreetBlock(
+  ordered: CoordinateStop[],
+  startIndex: number,
+  streetKey: string,
+) {
+  let endIndex = startIndex;
+
+  while (endIndex < ordered.length && getStreetKey(ordered[endIndex]) === streetKey) {
+    endIndex += 1;
+  }
+
+  return { startIndex, endIndex };
+}
+
+function repairStreetReentries(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  let best = [...ordered];
+  const maxPasses = ordered.length > 1000 ? 2 : 8;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const closedStreetKeys = new Set<string>();
+    const lastStreetEndIndex = new Map<string, number>();
+    let previousStreetKey: string | undefined;
+    let repaired = false;
+
+    for (let index = 0; index < best.length; index += 1) {
+      const streetKey = getStreetKey(best[index]);
+
+      if (!streetKey) {
+        previousStreetKey = undefined;
+        continue;
+      }
+
+      if (previousStreetKey && streetKey !== previousStreetKey) {
+        closedStreetKeys.add(previousStreetKey);
+        lastStreetEndIndex.set(previousStreetKey, index);
+      }
+
+      if (streetKey !== previousStreetKey && closedStreetKeys.has(streetKey)) {
+        const previousEndIndex = lastStreetEndIndex.get(streetKey);
+
+        if (previousEndIndex === undefined) {
+          break;
+        }
+
+        const block = findContiguousStreetBlock(best, index, streetKey);
+        const candidate = [...best];
+        const moved = candidate.splice(
+          block.startIndex,
+          block.endIndex - block.startIndex,
+        );
+        const insertIndex =
+          previousEndIndex > block.startIndex
+            ? previousEndIndex - moved.length
+            : previousEndIndex;
+
+        candidate.splice(insertIndex, 0, ...moved);
+
+        if (
+          scoreRouteQualityAware(candidate, start, end) <
+          scoreRouteQualityAware(best, start, end)
+        ) {
+          best = candidate;
+          repaired = true;
+        }
+
+        break;
+      }
+
+      previousStreetKey = streetKey;
+    }
+
+    if (!repaired) {
+      break;
+    }
+  }
+
+  return best;
+}
+
+function isSameNearbyStreetFace(
+  current: ParsedStreetStop,
+  previous: ParsedStreetStop,
+) {
+  return (
+    current.streetKey === previous.streetKey &&
+    current.side === previous.side &&
+    getHaversineMeters(current.stop, previous.stop) <= 420 &&
+    Math.abs(current.houseNumber - previous.houseNumber) <= 420
+  );
+}
+
+function getStreetFaceRuns(ordered: CoordinateStop[]) {
+  if (ordered.length < 3) {
+    return [];
+  }
+
+  const runs: Array<{ startIndex: number; endIndex: number }> = [];
+  let runStartIndex = 0;
+  let previous = parseStreetStop(ordered[0]);
+
+  for (let index = 1; index < ordered.length; index += 1) {
+    const parsed = parseStreetStop(ordered[index]);
+
+    if (!parsed || !previous || !isSameNearbyStreetFace(parsed, previous)) {
+      if (index - runStartIndex >= 3) {
+        runs.push({ startIndex: runStartIndex, endIndex: index });
+      }
+
+      runStartIndex = index;
+    }
+
+    previous = parsed;
+  }
+
+  if (ordered.length - runStartIndex >= 3) {
+    runs.push({ startIndex: runStartIndex, endIndex: ordered.length });
+  }
+
+  return runs;
+}
+
+function repairStreetFaceBacktracking(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  let best = [...ordered];
+
+  for (const run of getStreetFaceRuns(best)) {
+    const currentRun = best.slice(run.startIndex, run.endIndex);
+    const diagnostics = analyzeRouteQuality(
+      buildSyntheticVisitOrder(currentRun, undefined, undefined),
+      currentRun,
+    );
+
+    if (!diagnostics.streetFaceBacktrackCount) {
+      continue;
+    }
+
+    const ascendingRun = [...currentRun].sort(
+      (a, b) =>
+        (parseStreetStop(a)?.houseNumber ?? 0) -
+        (parseStreetStop(b)?.houseNumber ?? 0),
+    );
+    const descendingRun = [...ascendingRun].reverse();
+    const candidates = [ascendingRun, descendingRun].map((candidateRun) => [
+      ...best.slice(0, run.startIndex),
+      ...candidateRun,
+      ...best.slice(run.endIndex),
+    ]);
+    const next = candidates.reduce((candidateBest, candidate) =>
+      scoreRouteQualityAware(candidate, start, end) <
+      scoreRouteQualityAware(candidateBest, start, end)
+        ? candidate
+        : candidateBest,
+    );
+
+    if (scoreRouteQualityAware(next, start, end) < scoreRouteQualityAware(best, start, end)) {
+      best = next;
+    }
+  }
+
+  return best;
 }
 
 function getBestInsertionIndex(

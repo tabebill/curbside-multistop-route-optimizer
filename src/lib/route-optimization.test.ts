@@ -139,6 +139,13 @@ function assertCleanRouteContinuity(
   );
 }
 
+function assertCleanCurbsideOrder(ordered: CoordinateStop[]) {
+  const diagnostics = getRouteDiagnostics(ordered);
+
+  assert.equal(diagnostics?.streetFaceReentryCount, 0);
+  assert.equal(diagnostics?.streetFaceBacktrackCount, 0);
+}
+
 test("default route keeps nearby sample-address stops together before moving to farther streets", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
@@ -974,6 +981,7 @@ test("default route stays stable across adversarial neighborhood shapes", () => 
         `scenario ${scenarioIndex} seed ${seed} should retain every stop`,
       );
       assertCleanRouteContinuity(ordered, 0.9);
+      assertCleanCurbsideOrder(ordered);
     }
   });
 });
@@ -1004,6 +1012,7 @@ test("curbside strict stays clean across shuffled repeated street segments", () 
   assert.equal(ordered.length, shuffled.length);
   assert.equal(new Set(ordered.map((stop) => stop.id)).size, shuffled.length);
   assert.equal(diagnostics?.suspiciousJumpCount, 0);
+  assertCleanCurbsideOrder(ordered);
 });
 
 test("default route handles large synthetic imports without dropping stops", () => {
