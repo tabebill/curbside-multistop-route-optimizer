@@ -614,6 +614,51 @@ test("quality fallback rejects routes between the old and strict continuity gate
   );
 });
 
+test("auto fallback rejects barely acceptable generic numbering gaps", () => {
+  const stops: CoordinateStop[] = Array.from({ length: 16 }, (_, index) => ({
+    id: `generic-${index}`,
+    label: `Generic point ${index}`,
+    latitude: 36,
+    longitude: -96 + index * 0.001,
+  }));
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 4 },
+            { shipmentIndex: 2 },
+            { shipmentIndex: 3 },
+            ...Array.from({ length: 11 }, (_, index) => ({
+              shipmentIndex: index + 5,
+            })),
+          ],
+        },
+      ],
+    },
+    stops,
+    undefined,
+    { routeOptimizationMode: "auto" },
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    stops.map((stop) => stop.id),
+  );
+  assert.equal(route.qualityFallback?.applied, true);
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMissCount,
+    1,
+  );
+  assert(
+    (route.qualityFallback?.originalQualityDiagnostics?.nearestNeighborMatchRate ??
+      0) >= 0.9,
+  );
+  assert.equal(route.qualityDiagnostics?.nearestNeighborMissCount, 0);
+});
+
 test("quality fallback repairs Google order before falling back to seeded input order", () => {
   const groupA = Array.from({ length: 6 }, (_, index) => ({
     id: `repair-a-${index}`,

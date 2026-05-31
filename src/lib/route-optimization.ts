@@ -2628,12 +2628,29 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     const routeFaceBacktracks = route.qualityDiagnostics?.streetFaceBacktrackCount ?? 0;
     const fallbackFaceBacktracks =
       fallbackDiagnostics?.streetFaceBacktrackCount ?? 0;
+    const routeNearestMisses =
+      route.qualityDiagnostics?.nearestNeighborMissCount ?? 0;
+    const fallbackNearestMisses = fallbackDiagnostics?.nearestNeighborMissCount ?? 0;
+    const routeContinuity = route.qualityDiagnostics?.nearestNeighborMatchRate ?? 1;
+    const fallbackContinuity = fallbackDiagnostics?.nearestNeighborMatchRate ?? 0;
+    const routeLongestLeg = route.qualityDiagnostics?.longestLegMeters ?? 0;
+    const fallbackLongestLeg = fallbackDiagnostics?.longestLegMeters ?? 0;
+    const fallbackKeepsStreetQuality =
+      fallbackFaceReentries <= routeFaceReentries &&
+      fallbackFaceBacktracks <= routeFaceBacktracks;
 
     shouldPreferAutoFallback =
       routeOptimizationMode === "auto" &&
       Boolean(fallbackDiagnostics) &&
       (fallbackFaceReentries < routeFaceReentries ||
-        fallbackFaceBacktracks < routeFaceBacktracks);
+        fallbackFaceBacktracks < routeFaceBacktracks ||
+        (fallbackKeepsStreetQuality &&
+          (fallbackNearestMisses < routeNearestMisses ||
+            fallbackContinuity >= routeContinuity + 0.02 ||
+            (routeLongestLeg > 0 &&
+              fallbackLongestLeg > 0 &&
+              fallbackLongestLeg <= routeLongestLeg * 0.75 &&
+              fallbackContinuity >= routeContinuity))));
 
     if (!shouldPreferAutoFallback) {
       return route;
