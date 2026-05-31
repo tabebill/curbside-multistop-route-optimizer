@@ -29,6 +29,40 @@ function getMatch(value: string, pattern: RegExp) {
   return value.match(pattern)?.[1];
 }
 
+async function waitForBodyText(
+  page: Page,
+  matcher: string | RegExp,
+  label: string,
+) {
+  try {
+    await page.waitForFunction(
+      (expected) => {
+        const text = document.body.innerText;
+
+        return typeof expected === "string"
+          ? text.includes(expected)
+          : new RegExp(expected.source, expected.flags).test(text);
+      },
+      matcher,
+      { timeout: timeoutMs },
+    );
+  } catch (error) {
+    const bodyText = await page.locator("body").innerText({ timeout: 5_000 });
+
+    console.error(
+      JSON.stringify(
+        {
+          waitFor: label,
+          bodyPreview: bodyText.slice(0, 5_000),
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
+  }
+}
+
 function readFixtureStops() {
   if (!existsSync(sampleStopsFile)) {
     throw new Error(`Missing sample stops fixture: ${sampleStopsFile}`);
@@ -125,6 +159,20 @@ async function installOfflineApiMocks(page: Page) {
       body: JSON.stringify(routeResponse),
     });
   });
+
+  await page.route("**/api/route-optimization/validate", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      stops?: CoordinateStop[];
+    };
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        validatedStops: requestBody.stops?.length ?? 0,
+        validationErrors: [],
+      }),
+    });
+  });
 }
 
 async function main() {
@@ -146,27 +194,18 @@ async function main() {
     await page.locator("textarea").first().fill(addresses.join("\n"));
     await page.getByRole("button", { name: /Add Stops/i }).click();
     await page.getByRole("button", { name: /^Validate$/i }).click();
-    await page.waitForFunction(
-      () => document.body.innerText.includes("VALID"),
-      undefined,
-      { timeout: timeoutMs },
-    );
+    await waitForBodyText(page, "VALID", "validation complete");
 
     if (await page.getByRole("button", { name: /Accept Google Results/i }).count()) {
       await page.getByRole("button", { name: /Accept Google Results/i }).first().click();
-      await page.waitForFunction(
-        () => document.body.innerText.includes("accepted from Google"),
-        undefined,
-        { timeout: timeoutMs },
-      );
+      await waitForBodyText(page, "accepted from Google", "accepted Google results");
     }
 
     await page.getByRole("button", { name: /Optimize Route/i }).click();
-    await page.waitForFunction(
-      (expectedCount) =>
-        document.body.innerText.includes(`Stop 1 of ${expectedCount}`),
-      addresses.length,
-      { timeout: timeoutMs },
+    await waitForBodyText(
+      page,
+      `Stop 1 of ${addresses.length}`,
+      "optimized navigation ready",
     );
 
     const bodyText = await page.locator("body").innerText();
