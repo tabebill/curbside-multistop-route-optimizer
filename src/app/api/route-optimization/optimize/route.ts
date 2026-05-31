@@ -9,7 +9,7 @@ import {
   countRouteStops,
   filterValidCoordinateStops,
   maxRouteStops,
-  normalizeOptimizeToursResponse,
+  normalizeOptimizeToursResponseWithQualityFallback,
   prepareOptimizeToursRequest,
 } from "@/lib/route-optimization";
 import type {
@@ -29,15 +29,15 @@ type OptimizeBody = {
 
 const synchronousStopLimit = 100;
 const optimizeCacheTtlMs = 10 * 60 * 1000;
-const optimizeCacheVersion = "google-seeded-solve-v1";
+const optimizeCacheVersion = "quality-fallback-v1";
 const optimizeCache = new Map<
   string,
-  { route: ReturnType<typeof normalizeOptimizeToursResponse>; expiresAt: number }
+  { route: ReturnType<typeof normalizeOptimizeToursResponseWithQualityFallback>; expiresAt: number }
 >();
 
 function rememberOptimizedRoute(
   key: string,
-  route: ReturnType<typeof normalizeOptimizeToursResponse>,
+  route: ReturnType<typeof normalizeOptimizeToursResponseWithQualityFallback>,
 ) {
   if (optimizeCache.size > 100) {
     const oldest = optimizeCache.keys().next().value;
@@ -147,7 +147,10 @@ export async function POST(request: Request) {
     return NextResponse.json(data, { status: response.status });
   }
 
-  const route = normalizeOptimizeToursResponse(data, shipmentStops, { start, end });
+  const route = normalizeOptimizeToursResponseWithQualityFallback(data, shipmentStops, {
+    start,
+    end,
+  });
 
   rememberOptimizedRoute(cacheKey, route);
 

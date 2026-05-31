@@ -1639,3 +1639,50 @@ export function normalizeOptimizeToursResponse(
     qualityDiagnostics: analyzeRouteQuality(visitOrder, shipmentStops, endpoints),
   };
 }
+
+export function normalizeOptimizeToursResponseWithQualityFallback(
+  rawData: unknown,
+  shipmentStops: CoordinateStop[],
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+) {
+  const route = normalizeOptimizeToursResponse(rawData, shipmentStops, endpoints);
+  const issueCount = route.qualityDiagnostics?.issueCount ?? 0;
+
+  if (!issueCount) {
+    return route;
+  }
+
+  const fallbackRoute = normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+      skippedShipments: Array.from({ length: route.skippedShipmentCount }),
+      validationErrors: route.validationErrors,
+    },
+    shipmentStops,
+    endpoints,
+  );
+  const fallbackIssueCount = fallbackRoute.qualityDiagnostics?.issueCount ?? 0;
+
+  if (fallbackIssueCount >= issueCount) {
+    return route;
+  }
+
+  return {
+    ...fallbackRoute,
+    validationErrors: [
+      ...fallbackRoute.validationErrors,
+      {
+        message:
+          "Google returned a route with suspicious skipped-nearby stops; using the seeded local order instead.",
+        originalQualityDiagnostics: route.qualityDiagnostics,
+      },
+    ],
+  };
+}

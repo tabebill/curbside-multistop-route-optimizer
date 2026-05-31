@@ -4,6 +4,7 @@ import {
   buildOptimizeToursPayload,
   buildLocalOptimizedStopSequenceForTesting,
   normalizeOptimizeToursResponse,
+  normalizeOptimizeToursResponseWithQualityFallback,
 } from "@/lib/route-optimization";
 import type { CoordinateStop } from "@/lib/route-types";
 
@@ -398,6 +399,37 @@ test("route quality diagnostics flag long jumps that skip nearer later stops", (
   assert.equal(route.qualityDiagnostics?.issues[0].fromStopId, "near-1");
   assert.equal(route.qualityDiagnostics?.issues[0].toStopId, "far");
   assert.equal(route.qualityDiagnostics?.issues[0].nearestLaterStopId, "near-2");
+});
+
+test("quality fallback replaces suspicious Google order with seeded local order", () => {
+  const stops: CoordinateStop[] = [
+    { id: "near-1", label: "Near 1", latitude: 36, longitude: -96 },
+    { id: "near-2", label: "Near 2", latitude: 36.0001, longitude: -96.0001 },
+    { id: "near-3", label: "Near 3", latitude: 36.0002, longitude: -96.0002 },
+    { id: "far", label: "Far", latitude: 36.1, longitude: -96.1 },
+  ];
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 3 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 2 },
+          ],
+        },
+      ],
+    },
+    stops,
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    ["near-1", "near-2", "near-3", "far"],
+  );
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert.equal(route.validationErrors.length, 1);
 });
 
 test("route quality diagnostics stay clean for optimized first twenty sample stops", () => {

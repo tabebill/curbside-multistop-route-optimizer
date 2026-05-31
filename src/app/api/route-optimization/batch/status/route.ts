@@ -10,7 +10,7 @@ import {
   countRouteStops,
   filterValidCoordinateStops,
   maxRouteStops,
-  normalizeOptimizeToursResponse,
+  normalizeOptimizeToursResponseWithQualityFallback,
   prepareOptimizeToursRequest,
 } from "@/lib/route-optimization";
 import type {
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
       operationName,
       outputObject: resultFile.name,
       route: {
-        ...normalizeOptimizeToursResponse(optimizeResponse, shipmentStops, {
+        ...normalizeOptimizeToursResponseWithQualityFallback(optimizeResponse, shipmentStops, {
           start,
           end,
         }),
