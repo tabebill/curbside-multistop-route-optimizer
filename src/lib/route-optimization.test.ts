@@ -84,6 +84,44 @@ function squaredRouteDistance(stops: CoordinateStop[]) {
   }, 0);
 }
 
+function createSeededRandom(seed: number) {
+  let state = seed;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function shuffleStops<T>(items: T[], random: () => number) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    const item = shuffled[index];
+    shuffled[index] = shuffled[swapIndex];
+    shuffled[swapIndex] = item;
+  }
+
+  return shuffled;
+}
+
+function getRouteDiagnostics(ordered: CoordinateStop[]) {
+  const shipmentStops = ordered.slice(1);
+
+  return normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: ordered[0] },
+  ).qualityDiagnostics;
+}
+
 test("default route keeps nearby sample-address stops together before moving to farther streets", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
@@ -460,6 +498,72 @@ test("default route avoids quality-diagnostic jumps on mixed cluster input", () 
   );
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+});
+
+test("default route stays clean across deterministic shuffled cluster imports", () => {
+  const random = createSeededRandom(20260531);
+
+  for (let scenario = 0; scenario < 8; scenario += 1) {
+    const clusterCount = 4 + (scenario % 3);
+    const stopsPerCluster = 10 + scenario;
+    const stops = Array.from({ length: clusterCount }, (_, clusterIndex) => {
+      const centerLatitude =
+        36 + (clusterIndex % 3) * 0.04 + (random() - 0.5) * 0.004;
+      const centerLongitude =
+        -96 + Math.floor(clusterIndex / 3) * 0.04 + (random() - 0.5) * 0.004;
+
+      return Array.from({ length: stopsPerCluster }, (_, stopIndex) => ({
+        id: `scenario-${scenario}-cluster-${clusterIndex}-stop-${stopIndex}`,
+        label: `${1000 + stopIndex} E RANDOM ${clusterIndex} ST TULSA 74103`,
+        latitude: centerLatitude + (random() - 0.5) * 0.002,
+        longitude: centerLongitude + (random() - 0.5) * 0.002,
+      }));
+    }).flat();
+    const shuffled = shuffleStops(stops, random);
+    const ordered = buildLocalOptimizedStopSequenceForTesting({
+      stops: shuffled,
+      startStopId: shuffled[0].id,
+      endMode: "last_stop",
+      routeOptimizationMode: "google_optimized",
+    });
+    const diagnostics = getRouteDiagnostics(ordered);
+
+    assert.equal(ordered.length, shuffled.length);
+    assert.equal(new Set(ordered.map((stop) => stop.id)).size, shuffled.length);
+    assert.equal(
+      diagnostics?.suspiciousJumpCount,
+      0,
+      `scenario ${scenario} should not skip nearer clustered stops`,
+    );
+  }
+});
+
+test("curbside strict stays clean across shuffled repeated street segments", () => {
+  const random = createSeededRandom(74126);
+  const stops = Array.from({ length: 6 }, (_, segmentIndex) =>
+    Array.from({ length: 8 }, (_, stopIndex) => {
+      const houseNumber = 100 + stopIndex * 2 + segmentIndex * 700;
+
+      return {
+        id: `segment-${segmentIndex}-stop-${stopIndex}`,
+        label: `${houseNumber} E SHARED ST TULSA 74103`,
+        latitude: 36 + segmentIndex * 0.012 + stopIndex * 0.00012,
+        longitude: -96 + (segmentIndex % 2) * 0.009 + stopIndex * 0.00008,
+      };
+    }),
+  ).flat();
+  const shuffled = shuffleStops(stops, random);
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: shuffled,
+    startStopId: shuffled[0].id,
+    endMode: "last_stop",
+    routeOptimizationMode: "curbside_strict",
+  });
+  const diagnostics = getRouteDiagnostics(ordered);
+
+  assert.equal(ordered.length, shuffled.length);
+  assert.equal(new Set(ordered.map((stop) => stop.id)).size, shuffled.length);
+  assert.equal(diagnostics?.suspiciousJumpCount, 0);
 });
 
 test("default route handles large synthetic imports without dropping stops", () => {

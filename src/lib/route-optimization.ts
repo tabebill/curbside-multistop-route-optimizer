@@ -1041,7 +1041,9 @@ function repairSuspiciousJumpDestinations(
 ) {
   let best = [...ordered];
 
-  for (let pass = 0; pass < 2; pass += 1) {
+  const maxPasses = ordered.length > 1000 ? 3 : 12;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
     const diagnostics = analyzeRouteQuality(
       buildSyntheticVisitOrder(best, start, end),
       best,
@@ -1075,6 +1077,50 @@ function repairSuspiciousJumpDestinations(
       beforeNearestCandidate.splice(nearestIndex, 0, moved);
       afterNearestCandidate.splice(nearestIndex + 1, 0, moved);
       insertionCandidates.push(beforeNearestCandidate, afterNearestCandidate);
+    }
+
+    if (issue.nearestLaterStopId) {
+      const nearestLaterIndex = best.findIndex(
+        (stop) => stop.id === issue.nearestLaterStopId,
+      );
+      const toIndex = best.findIndex((stop) => stop.id === issue.toStopId);
+
+      if (nearestLaterIndex >= 0 && toIndex >= 0 && nearestLaterIndex > toIndex) {
+        const pullNearbyCandidate = [...best];
+        const [nearby] = pullNearbyCandidate.splice(nearestLaterIndex, 1);
+        const nextToIndex = pullNearbyCandidate.findIndex(
+          (stop) => stop.id === issue.toStopId,
+        );
+
+        pullNearbyCandidate.splice(Math.max(0, nextToIndex), 0, nearby);
+        insertionCandidates.push(pullNearbyCandidate);
+      }
+    }
+
+    const fromIndex = best.findIndex((stop) => stop.id === issue.fromStopId);
+    const jumpIndex = best.findIndex((stop) => stop.id === issue.toStopId);
+    const fromStop = fromIndex >= 0 ? best[fromIndex] : undefined;
+
+    if (fromStop && jumpIndex >= 0) {
+      const nearbyLaterIds = best
+        .slice(jumpIndex + 1)
+        .filter(
+          (stop) =>
+            getHaversineMeters(fromStop, stop) <
+            issue.distanceMeters * 0.4,
+        )
+        .map((stop) => stop.id);
+
+      if (nearbyLaterIds.length) {
+        const nearbyIdSet = new Set(nearbyLaterIds);
+        const pullNearbyBlockCandidate = [
+          ...best.slice(0, jumpIndex),
+          ...best.filter((stop) => nearbyIdSet.has(stop.id)),
+          ...best.slice(jumpIndex).filter((stop) => !nearbyIdSet.has(stop.id)),
+        ];
+
+        insertionCandidates.push(pullNearbyBlockCandidate);
+      }
     }
 
     const currentScore = getDiagnosticScore(best, start, end);
