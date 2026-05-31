@@ -116,6 +116,17 @@ npm run build
 
 The app can load without credentials, but map rendering, geocoding, validation, and optimization require configured Google credentials.
 
+For optimizer-specific checks, run:
+
+```bash
+npm test
+npm run benchmark:routes
+ROUTE_BENCHMARK_STOPS=5000 npm run benchmark:routes
+```
+
+The benchmark uses deterministic synthetic stops and reports stop preservation,
+elapsed time, and route-quality diagnostics for large local route ordering.
+
 ## Security
 
 This branch intentionally does not include personal secrets, `.env.local`, service-account JSON, or Cloud Storage credentials. Before deploying your own fork, review API key restrictions, quota limits, service-account permissions, and billing alerts.

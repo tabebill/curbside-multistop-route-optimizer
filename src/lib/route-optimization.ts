@@ -933,11 +933,59 @@ function improveRoute(
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
-  return improveRouteWithRelocate(
-    improveRouteWithTwoOpt(ordered, start, end),
+  return repairSuspiciousJumps(
+    improveRouteWithRelocate(
+      improveRouteWithTwoOpt(ordered, start, end),
+      start,
+      end,
+    ),
     start,
     end,
   );
+}
+
+function repairSuspiciousJumps(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  let best = [...ordered];
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const diagnostics = analyzeRouteQuality(
+      buildSyntheticVisitOrder(best, start, end),
+      best,
+      { start, end },
+    );
+    const issue = diagnostics.issues[0];
+
+    if (!issue?.nearestLaterStopId) {
+      break;
+    }
+
+    const fromIndex = best.findIndex((stop) => stop.id === issue.fromStopId);
+    const moveIndex = best.findIndex((stop) => stop.id === issue.nearestLaterStopId);
+
+    if (fromIndex < 0 || moveIndex < 0 || moveIndex <= fromIndex + 1) {
+      break;
+    }
+
+    const candidate = [...best];
+    const [moved] = candidate.splice(moveIndex, 1);
+    candidate.splice(fromIndex + 1, 0, moved);
+
+    if (
+      scoreRouteQualityAware(candidate, start, end) <
+      scoreRouteQualityAware(best, start, end)
+    ) {
+      best = candidate;
+      continue;
+    }
+
+    break;
+  }
+
+  return best;
 }
 
 function getCoordinateBounds(stops: CoordinateStop[]) {
