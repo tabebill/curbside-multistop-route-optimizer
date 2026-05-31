@@ -150,9 +150,34 @@ test("default route matches real sample-address first thirty neighborhood progre
   });
 
   assert.deepEqual(inputOrders(ordered, firstThirtySampleStops), [
-    1, 2, 3, 4, 5, 7, 6, 8, 9, 13, 10, 12, 11, 20, 14, 15, 25, 24, 21, 19,
+    1, 2, 3, 4, 5, 7, 6, 8, 9, 13, 10, 11, 12, 20, 14, 15, 25, 24, 21, 19,
     18, 17, 28, 16, 22, 23, 26, 27, 29, 30,
   ]);
+  assert.equal(getRouteDiagnostics(ordered)?.suspiciousJumpCount, 0);
+});
+
+test("default route stays clean when real sample-address imports arrive shuffled", () => {
+  for (let seed = 1; seed <= 12; seed += 1) {
+    const ordered = buildLocalOptimizedStopSequenceForTesting({
+      stops: shuffleStops(firstThirtySampleStops, createSeededRandom(seed)),
+      startStopId: "1",
+      endMode: "last_stop",
+      routeOptimizationMode: "google_optimized",
+    });
+    const diagnostics = getRouteDiagnostics(ordered);
+    const firstOwassoIndex = ordered.findIndex((stop) =>
+      stop.label.includes("OWASSO"),
+    );
+    const e73Indexes = ordered
+      .map((stop, index) => (stop.label.includes(" E 73 ST N ") ? index : -1))
+      .filter((index) => index >= 0);
+
+    assert.equal(diagnostics?.suspiciousJumpCount, 0, `seed ${seed}`);
+    assert(
+      e73Indexes.every((index) => firstOwassoIndex < 0 || index < firstOwassoIndex),
+      `seed ${seed} should keep the E 73 ST N cluster before moving into Owasso`,
+    );
+  }
 });
 
 test("default route does not let input order scatter compact clusters", () => {

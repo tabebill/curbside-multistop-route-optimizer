@@ -890,7 +890,10 @@ function improveRouteWithTwoOpt(
     }
   }
 
-  return best;
+  return scoreRouteQualityAware(best, start, end) <
+    scoreRouteQualityAware(ordered, start, end)
+    ? best
+    : ordered;
 }
 
 function improveRouteWithRelocate(
@@ -962,7 +965,91 @@ function improveRouteWithRelocate(
     }
   }
 
-  return best;
+  return scoreRouteQualityAware(best, start, end) <
+    scoreRouteQualityAware(ordered, start, end)
+    ? best
+    : ordered;
+}
+
+function improveRouteWithBlockRelocate(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 6) {
+    return ordered;
+  }
+
+  let best = [...ordered];
+  const maxBlockSize = ordered.length > 1000 ? 2 : 3;
+  const maxPasses = ordered.length > 1000 ? 1 : 2;
+  const maxSpan = ordered.length > 1000 ? 80 : ordered.length;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let improved = false;
+
+    for (let blockSize = 2; blockSize <= maxBlockSize; blockSize += 1) {
+      for (let fromIndex = 0; fromIndex <= best.length - blockSize; fromIndex += 1) {
+        const beforeRemoved = getRouteItem(best, fromIndex - 1, start, end);
+        const firstRemoved = best[fromIndex];
+        const lastRemoved = best[fromIndex + blockSize - 1];
+        const afterRemoved = getRouteItem(best, fromIndex + blockSize, start, end);
+        const removalSavings =
+          getHaversineMeters(beforeRemoved, firstRemoved) +
+          getHaversineMeters(lastRemoved, afterRemoved) -
+          getHaversineMeters(beforeRemoved, afterRemoved);
+        const candidate = [...best];
+        const block = candidate.splice(fromIndex, blockSize);
+        const minInsertIndex = Math.max(0, fromIndex - maxSpan);
+        const maxInsertIndex = Math.min(best.length, fromIndex + blockSize + maxSpan);
+        let bestCandidate: CoordinateStop[] | undefined;
+        let bestGain = 0;
+
+        for (let insertIndex = minInsertIndex; insertIndex <= maxInsertIndex; insertIndex += 1) {
+          if (insertIndex >= fromIndex && insertIndex <= fromIndex + blockSize) {
+            continue;
+          }
+
+          const adjustedInsertIndex =
+            insertIndex > fromIndex ? insertIndex - blockSize : insertIndex;
+          const beforeInserted = getRouteItem(
+            candidate,
+            adjustedInsertIndex - 1,
+            start,
+            end,
+          );
+          const afterInserted = getRouteItem(candidate, adjustedInsertIndex, start, end);
+          const insertionCost =
+            getHaversineMeters(beforeInserted, block[0]) +
+            getHaversineMeters(block[block.length - 1], afterInserted) -
+            getHaversineMeters(beforeInserted, afterInserted);
+          const gain = removalSavings - insertionCost;
+
+          if (gain > bestGain + 0.5) {
+            const nextCandidate = [...candidate];
+
+            nextCandidate.splice(adjustedInsertIndex, 0, ...block);
+            bestGain = gain;
+            bestCandidate = nextCandidate;
+          }
+        }
+
+        if (bestCandidate) {
+          best = bestCandidate;
+          improved = true;
+        }
+      }
+    }
+
+    if (!improved) {
+      break;
+    }
+  }
+
+  return scoreRouteQualityAware(best, start, end) <
+    scoreRouteQualityAware(ordered, start, end)
+    ? best
+    : ordered;
 }
 
 function improveRoute(
@@ -971,8 +1058,12 @@ function improveRoute(
   end: CoordinateStop | undefined,
 ) {
   return repairSuspiciousJumpDestinations(
-    improveRouteWithRelocate(
-      improveRouteWithTwoOpt(ordered, start, end),
+    improveRouteWithBlockRelocate(
+      improveRouteWithRelocate(
+        improveRouteWithTwoOpt(ordered, start, end),
+        start,
+        end,
+      ),
       start,
       end,
     ),
