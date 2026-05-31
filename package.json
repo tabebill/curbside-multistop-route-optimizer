@@ -13,6 +13,8 @@
     "benchmark:routes:5000:shuffles:round-trip": "ROUTE_BENCHMARK_STOPS=5000 ROUTE_BENCHMARK_SHUFFLES=3 ROUTE_BENCHMARK_END_MODE=round_trip ROUTE_BENCHMARK_MODE=google_optimized tsx scripts/benchmark-route-optimizer.ts",
     "verify:sample-route": "tsx scripts/verify-sample-route.ts",
     "verify:sample-shuffles": "tsx scripts/verify-sample-shuffles.ts",
+    "verify:sample-shuffles:selected-end": "ROUTE_SAMPLE_END_MODE=selected_stop tsx scripts/verify-sample-shuffles.ts",
+    "verify:sample-shuffles:round-trip": "ROUTE_SAMPLE_END_MODE=round_trip tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-ui": "tsx scripts/verify-sample-ui.ts",
     "test": "tsx --test src/**/*.test.ts",
     "start": "next start",
