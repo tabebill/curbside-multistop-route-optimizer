@@ -493,22 +493,23 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
       if (saved) {
         try {
           const parsed = JSON.parse(saved) as SavedWorkspace;
+          const shouldMigrateRoundTrip =
+            !parsed.endMode || parsed.endMode === "round_trip";
+
           setRouteName(parsed.routeName || "Untitled route");
           setRouteOptimizationMode(
             parsed.routeOptimizationMode ??
               (parsed.curbsideRouting ? "curbside_strict" : "google_optimized"),
           );
           setStartMode(parsed.startMode || "route_stop");
-          setEndMode(
-            !parsed.endMode || parsed.endMode === "round_trip"
-              ? "last_stop"
-              : parsed.endMode,
-          );
+          setEndMode(shouldMigrateRoundTrip ? "last_stop" : parsed.endMode);
           setStartStopId(parsed.startStopId || "");
           setEndStopId(parsed.endStopId || "");
           setCurrentLocation(parsed.currentLocation);
           setStops(parsed.stops || []);
-          setOptimizedRoute(parsed.optimizedRoute);
+          setOptimizedRoute(
+            shouldMigrateRoundTrip ? undefined : parsed.optimizedRoute,
+          );
         } catch {
           window.localStorage.removeItem(workspaceStorageKey);
         }
