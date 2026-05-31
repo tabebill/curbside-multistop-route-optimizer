@@ -56,6 +56,9 @@ jobs:
       - name: Run sample-address route verifier
         run: npm run verify:sample-route
 
+      - name: Run first-20 sample-address route verifier
+        run: npm run verify:sample-20-shuffles
+
       - name: Run shuffled sample-address route verifier
         run: npm run verify:sample-shuffles
 

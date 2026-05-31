@@ -68,7 +68,7 @@ async function geocodeAddresses() {
       stops?: CoordinateStop[];
     };
 
-    return (fixture.stops ?? []).map((stop) => ({
+    return (fixture.stops ?? []).slice(0, addresses.length).map((stop) => ({
       input: stop.label,
       normalizedAddress: stop.label,
       latitude: stop.latitude,

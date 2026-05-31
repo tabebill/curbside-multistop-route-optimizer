@@ -12,6 +12,7 @@
     "benchmark:routes:5000:shuffles:selected-end": "ROUTE_BENCHMARK_STOPS=5000 ROUTE_BENCHMARK_SHUFFLES=1 ROUTE_BENCHMARK_END_MODE=selected_stop ROUTE_BENCHMARK_MODE=auto tsx scripts/benchmark-route-optimizer.ts",
     "benchmark:routes:5000:shuffles:round-trip": "ROUTE_BENCHMARK_STOPS=5000 ROUTE_BENCHMARK_SHUFFLES=1 ROUTE_BENCHMARK_END_MODE=round_trip ROUTE_BENCHMARK_MODE=auto tsx scripts/benchmark-route-optimizer.ts",
     "verify:sample-route": "tsx scripts/verify-sample-route.ts",
+    "verify:sample-20-shuffles": "ROUTE_SAMPLE_LIMIT=20 ROUTE_SAMPLE_SHUFFLES=12 tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-shuffles": "tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-shuffles:selected-end": "ROUTE_SAMPLE_END_MODE=selected_stop tsx scripts/verify-sample-shuffles.ts",
     "verify:sample-shuffles:round-trip": "ROUTE_SAMPLE_END_MODE=round_trip tsx scripts/verify-sample-shuffles.ts",
