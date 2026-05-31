@@ -738,6 +738,30 @@ test("quality fallback rejects same-street side reentry", () => {
   assert.equal(route.qualityFallback?.applied, true);
 });
 
+test("default route groups both sides of the same curb before leaving the street", () => {
+  const stops: CoordinateStop[] = [
+    { id: "start", label: "100 E SIDE ST TULSA 74103", latitude: 36, longitude: -96 },
+    { id: "odd-1", label: "101 E SIDE ST TULSA 74103", latitude: 36.00005, longitude: -95.9999 },
+    { id: "even-1", label: "102 E SIDE ST TULSA 74103", latitude: 36.00008, longitude: -95.9998 },
+    { id: "odd-2", label: "103 E SIDE ST TULSA 74103", latitude: 36.00012, longitude: -95.9997 },
+    { id: "even-2", label: "104 E SIDE ST TULSA 74103", latitude: 36.00015, longitude: -95.9996 },
+    { id: "odd-3", label: "105 E SIDE ST TULSA 74103", latitude: 36.00019, longitude: -95.9995 },
+    { id: "even-3", label: "106 E SIDE ST TULSA 74103", latitude: 36.00022, longitude: -95.9994 },
+    { id: "next", label: "200 E NEXT ST TULSA 74103", latitude: 36.001, longitude: -95.999 },
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "start",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const diagnostics = getRouteDiagnostics(ordered);
+
+  assert.equal(diagnostics?.streetFaceReentryCount, 0);
+  assert.equal(diagnostics?.streetFaceBacktrackCount, 0);
+  assert.equal(diagnostics?.suspiciousJumpCount, 0);
+});
+
 test("quality fallback rejects same-curb house-number backtracking", () => {
   const stops: CoordinateStop[] = [
     { id: "100", label: "100 E ORDER ST TULSA 74103", latitude: 36, longitude: -96 },
