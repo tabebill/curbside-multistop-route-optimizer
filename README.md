@@ -137,6 +137,18 @@ npm run verify:sample-route
 Use `ROUTE_SAMPLE_BASE_URL` if the dev server is not running on
 `http://localhost:3000`.
 
+To verify the same sample through the browser UI, with import, validation,
+Google-candidate acceptance, optimization, and navigation numbering checked end
+to end, run:
+
+```bash
+npm run verify:sample-ui
+```
+
+This command fails if the UI optimizes fewer stops than the sample contains, if
+the final navigation sequence is missing, if route-review warnings appear, or if
+browser console errors are emitted.
+
 ## Security
 
 This branch intentionally does not include personal secrets, `.env.local`, service-account JSON, or Cloud Storage credentials. Before deploying your own fork, review API key restrictions, quota limits, service-account permissions, and billing alerts.
