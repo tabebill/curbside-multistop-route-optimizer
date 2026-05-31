@@ -2147,6 +2147,12 @@ function orderDefaultRouteStops(
         : best;
     }
 
+    if (current.diagnostics.longestLegMeters !== best.diagnostics.longestLegMeters) {
+      return current.diagnostics.longestLegMeters < best.diagnostics.longestLegMeters
+        ? current
+        : best;
+    }
+
     return current.score < best.score ? current : best;
   }).candidate;
 }

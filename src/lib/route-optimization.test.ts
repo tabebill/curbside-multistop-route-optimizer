@@ -1014,6 +1014,55 @@ test("default route stays stable across adversarial neighborhood shapes", () => 
   });
 });
 
+test("default route handles bridge and outlier neighborhoods without scattered numbering", () => {
+  const bridgeStops: CoordinateStop[] = [
+    ...Array.from({ length: 4 }, (_, clusterIndex) =>
+      Array.from({ length: 18 }, (_, stopIndex) => ({
+        id: `bridge-cluster-${clusterIndex}-${stopIndex}`,
+        label: `${100 + stopIndex * 2} E BRIDGE CLUSTER ${clusterIndex} ST TULSA 74103`,
+        latitude:
+          36 + (clusterIndex % 2) * 0.025 + (stopIndex % 6) * 0.0002,
+        longitude:
+          -96 +
+          Math.floor(clusterIndex / 2) * 0.025 +
+          Math.floor(stopIndex / 6) * 0.0002,
+      })),
+    ).flat(),
+    ...Array.from({ length: 20 }, (_, index) => ({
+      id: `bridge-link-${index}`,
+      label: `${300 + index * 2} E BRIDGE LINK ST TULSA 74103`,
+      latitude: 36.001 + index * 0.0011,
+      longitude: -95.999 + index * 0.0011,
+    })),
+  ];
+  const outlierStops: CoordinateStop[] = [
+    ...Array.from({ length: 80 }, (_, index) => ({
+      id: `outlier-main-${index}`,
+      label: `${100 + index * 2} E OUTLIER MAIN ${Math.floor(index / 10)} ST TULSA 74103`,
+      latitude: 36 + (index % 10) * 0.00025,
+      longitude: -96 + Math.floor(index / 10) * 0.00025,
+    })),
+    ...Array.from({ length: 8 }, (_, index) => ({
+      id: `outlier-tail-${index}`,
+      label: `${500 + index * 2} E OUTLIER TAIL ST TULSA 74103`,
+      latitude: 36.05 + index * 0.0002,
+      longitude: -96.05 + index * 0.0002,
+    })),
+  ];
+
+  for (const stops of [bridgeStops, outlierStops]) {
+    const ordered = buildLocalOptimizedStopSequenceForTesting({
+      stops,
+      startStopId: stops[0].id,
+      endMode: "last_stop",
+      routeOptimizationMode: "google_optimized",
+    });
+
+    assert.equal(ordered.length, stops.length);
+    assertCleanRouteContinuity(ordered, 0.9);
+  }
+});
+
 test("curbside strict stays clean across shuffled repeated street segments", () => {
   const random = createSeededRandom(74126);
   const stops = Array.from({ length: 6 }, (_, segmentIndex) =>
