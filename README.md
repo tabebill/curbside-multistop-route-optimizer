@@ -130,6 +130,27 @@ elapsed time, and route-quality diagnostics for large local route ordering.
 `benchmark:routes:5000:all` runs both Google-seeded and strict curbside local
 ordering at 5,000 stops.
 
+The optimizer checks route quality with several diagnostics:
+
+- `suspiciousJumpCount`: fails when a route jumps far away while much closer
+  unvisited stops remain later in the sequence.
+- `nearestNeighborMatchRate`: measures how often the next stop is reasonably
+  close to the nearest remaining stop.
+- `streetFaceReentryCount`: catches returning to the same side of a street after
+  leaving it.
+- `streetFaceBacktrackCount`: catches house-number backtracking on the same
+  curb.
+- `longestLegRatio`: compares the longest leg against a calibrated baseline so
+  hidden long connector legs do not slip through otherwise clean routes.
+
+The default large-route gate allows no suspicious jumps, requires nearest-neighbor
+continuity, preserves every stop exactly once, and fails when the longest leg is
+more than `20x` the larger of the median leg or an `80m` residential baseline.
+Tune these with `ROUTE_BENCHMARK_MAX_SUSPICIOUS_JUMPS`,
+`ROUTE_BENCHMARK_MIN_NEAREST_MATCH_RATE`,
+`ROUTE_BENCHMARK_MAX_LONGEST_LEG_RATIO`, and
+`ROUTE_BENCHMARK_MIN_LEG_BASELINE_METERS`.
+
 To verify the included `sample-addresses.txt` through the live local API, start
 the app with configured Google credentials and run:
 
@@ -140,7 +161,13 @@ npm run verify:sample-route
 Use `ROUTE_SAMPLE_BASE_URL` if the dev server is not running on
 `http://localhost:3000`. The sample verifier fails on missing or duplicate
 visits, suspicious jumps, poor nearest-neighbor continuity, repeated street-face
-reentries, and curbside house-number backtracking.
+reentries, curbside house-number backtracking, and excessive longest-leg ratio.
+Tune the sample gate with `ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS`,
+`ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE`,
+`ROUTE_SAMPLE_MAX_STREET_FACE_REENTRIES`,
+`ROUTE_SAMPLE_MAX_STREET_FACE_BACKTRACKS`,
+`ROUTE_SAMPLE_MAX_LONGEST_LEG_RATIO`, and
+`ROUTE_SAMPLE_MIN_LEG_BASELINE_METERS`.
 
 To verify the same sample through the browser UI, with import, validation,
 Google-candidate acceptance, optimization, and navigation numbering checked end
