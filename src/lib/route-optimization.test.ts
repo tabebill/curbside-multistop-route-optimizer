@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   buildOptimizeToursPayload,
   buildLocalOptimizedStopSequenceForTesting,
+  getLargeRouteTimeoutSeconds,
+  maxRouteOptimizationTimeoutSeconds,
   normalizeOptimizeToursResponse,
   normalizeOptimizeToursResponseWithQualityFallback,
 } from "@/lib/route-optimization";
@@ -1023,6 +1025,7 @@ test("google optimized payload seeds Google but still asks Google to solve", () 
 
   assert.equal(payload.solvingMode, "DEFAULT_SOLVE");
   assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
+  assert.equal(payload.timeout, "20s");
   assert(!("refreshDetailsRoutes" in payload));
   assert(Array.isArray(payload.injectedFirstSolutionRoutes));
   assert.equal(
@@ -1030,6 +1033,21 @@ test("google optimized payload seeds Google but still asks Google to solve", () 
       .visits?.length,
     firstTwentySampleStops.length - 1,
   );
+});
+
+test("large async route payload can use a longer Google solver timeout", () => {
+  const payload = buildOptimizeToursPayload({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "auto",
+    timeoutSeconds: 1800,
+  }) as Record<string, unknown>;
+
+  assert.equal(payload.timeout, "1800s");
+  assert.equal(getLargeRouteTimeoutSeconds(undefined), maxRouteOptimizationTimeoutSeconds);
+  assert.equal(getLargeRouteTimeoutSeconds("99999"), maxRouteOptimizationTimeoutSeconds);
+  assert.equal(getLargeRouteTimeoutSeconds("1"), 20);
 });
 
 test("auto payload uses side-of-road waypoints with a seeded solve", () => {

@@ -16,9 +16,11 @@ type OptimizeRequestOptions = {
   curbsideRouting?: boolean;
   routeOptimizationMode?: RouteOptimizationMode;
   validateOnly?: boolean;
+  timeoutSeconds?: number;
 };
 
 export const maxRouteStops = 5000;
+export const maxRouteOptimizationTimeoutSeconds = 30 * 60;
 
 type ParsedStreetStop = {
   stop: CoordinateStop;
@@ -137,6 +139,19 @@ function getVehicleCosts() {
 
 function getRouteWindowHours(shipmentCount: number) {
   return Math.max(12, Math.ceil((shipmentCount + 1) / 25));
+}
+
+export function getLargeRouteTimeoutSeconds(value: unknown) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return maxRouteOptimizationTimeoutSeconds;
+  }
+
+  return Math.min(
+    maxRouteOptimizationTimeoutSeconds,
+    Math.max(20, Math.round(parsed)),
+  );
 }
 
 function getRouteOptimizationMode(options: OptimizeRequestOptions) {
@@ -2445,7 +2460,9 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     : undefined;
 
   const payload = {
-    timeout: options.validateOnly ? "5s" : "20s",
+    timeout: options.validateOnly
+      ? "5s"
+      : `${getLargeRouteTimeoutSeconds(options.timeoutSeconds ?? 20)}s`,
     solvingMode: options.validateOnly ? "VALIDATE_ONLY" : "DEFAULT_SOLVE",
     searchMode: options.validateOnly
       ? "RETURN_FAST"

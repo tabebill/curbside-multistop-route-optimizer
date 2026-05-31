@@ -68,6 +68,7 @@ GOOGLE_MAPS_SERVER_KEY=
 GOOGLE_CLOUD_PROJECT_ID=
 GOOGLE_APPLICATION_CREDENTIALS=
 GOOGLE_ROUTE_OPTIMIZATION_BUCKET=
+GOOGLE_ROUTE_OPTIMIZATION_BATCH_TIMEOUT_SECONDS=1800
 ```
 
 Optional/legacy compatibility variables:
@@ -83,6 +84,7 @@ Notes:
 - `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is used in the browser for map rendering.
 - `GOOGLE_MAPS_SERVER_KEY` is used only on the server for geocoding.
 - `GOOGLE_APPLICATION_CREDENTIALS` should point to a local service-account JSON file during local development.
+- `GOOGLE_ROUTE_OPTIMIZATION_BATCH_TIMEOUT_SECONDS` controls the solver time for async jobs. It defaults to `1800` seconds and is capped at Google's 30-minute maximum, which matters for large routes such as 5,000-stop jobs.
 - Do not commit `.env.local` or service-account JSON files.
 - In production hosting, store service-account credentials in your host's secret manager instead of committing files.
 

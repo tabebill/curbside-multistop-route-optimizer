@@ -9,6 +9,7 @@ import {
 import {
   countRouteStops,
   filterValidCoordinateStops,
+  getLargeRouteTimeoutSeconds,
   maxRouteStops,
   prepareOptimizeToursRequest,
 } from "@/lib/route-optimization";
@@ -79,6 +80,9 @@ export async function POST(request: Request) {
     endStopId: body.endStopId,
     curbsideRouting: body.curbsideRouting,
     routeOptimizationMode: body.routeOptimizationMode,
+    timeoutSeconds: getLargeRouteTimeoutSeconds(
+      process.env.GOOGLE_ROUTE_OPTIMIZATION_BATCH_TIMEOUT_SECONDS,
+    ),
   });
 
   await getRouteOptimizationBucket()
