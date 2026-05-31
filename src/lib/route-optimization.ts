@@ -506,6 +506,37 @@ function orderDefaultRouteStops(
   return improveRouteWithTwoOpt(orderNearestStops(stops, start), start, end);
 }
 
+export function buildLocalOptimizedStopSequenceForTesting(options: {
+  stops: CoordinateStop[];
+  startStopId?: string;
+  endMode?: EndMode;
+  endStopId?: string;
+  routeOptimizationMode?: RouteOptimizationMode;
+}) {
+  const stops = filterValidCoordinateStops(options.stops);
+  const { start, end } = getRouteEndpoints({
+    stops,
+    startStopId: options.startStopId,
+    endMode: options.endMode,
+    endStopId: options.endStopId,
+  });
+  const shipmentStops = getShipmentStops(stops, start, end);
+  const routeOptimizationMode =
+    options.routeOptimizationMode ?? "google_optimized";
+  const orderedStops =
+    routeOptimizationMode === "google_optimized"
+      ? orderDefaultRouteStops(shipmentStops, start, end)
+      : routeOptimizationMode === "curbside_strict"
+        ? orderCurbsideStops(shipmentStops, start)
+        : shipmentStops;
+
+  return [
+    ...(start ? [start] : []),
+    ...orderedStops,
+    ...(end && end.id !== start?.id ? [end] : []),
+  ];
+}
+
 function orderCurbsideStops(
   stops: CoordinateStop[],
   start: CoordinateStop | undefined,
