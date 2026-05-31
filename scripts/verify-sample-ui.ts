@@ -1,8 +1,16 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
+import {
+  buildLocalOptimizedStopSequenceForTesting,
+  normalizeOptimizeToursResponse,
+} from "@/lib/route-optimization";
+import type { CoordinateStop, EndMode, RouteOptimizationMode } from "@/lib/route-types";
 
 const baseUrl = process.env.ROUTE_SAMPLE_BASE_URL ?? "http://localhost:3000";
 const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
+const sampleStopsFile =
+  process.env.ROUTE_SAMPLE_STOPS_FILE ?? "scripts/fixtures/sample-stops.json";
+const useLiveApi = process.env.ROUTE_SAMPLE_UI_USE_LIVE_API === "1";
 const timeoutMs = Number(process.env.ROUTE_SAMPLE_UI_TIMEOUT_MS ?? 60_000);
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
@@ -12,9 +20,112 @@ const expectedFirstTenInputIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12];
 const expectedFirstTenLabels = expectedFirstTenInputIndexes.map(
   (index) => addresses[index],
 );
+const addressIndexByInput = new Map(
+  addresses.map((address, index) => [address.toLowerCase(), index]),
+);
 
 function getMatch(value: string, pattern: RegExp) {
   return value.match(pattern)?.[1];
+}
+
+function readFixtureStops() {
+  if (!existsSync(sampleStopsFile)) {
+    throw new Error(`Missing sample stops fixture: ${sampleStopsFile}`);
+  }
+
+  const fixture = JSON.parse(readFileSync(sampleStopsFile, "utf8")) as {
+    stops?: CoordinateStop[];
+  };
+
+  if (!fixture.stops?.length) {
+    throw new Error(`Sample stops fixture has no stops: ${sampleStopsFile}`);
+  }
+
+  return fixture.stops;
+}
+
+async function installOfflineApiMocks(
+  page: Awaited<ReturnType<ReturnType<typeof chromium.launch>["newPage"]>>,
+) {
+  if (useLiveApi) {
+    return;
+  }
+
+  const fixtureStops = readFixtureStops();
+
+  await page.route("**/api/geocode", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      addresses?: string[];
+    };
+    const results = (requestBody.addresses ?? []).map((address) => {
+      const index = addressIndexByInput.get(address.toLowerCase());
+      const stop = index === undefined ? undefined : fixtureStops[index];
+
+      if (!stop) {
+        return {
+          input: address,
+          status: "failed" as const,
+          message: "No offline geocode fixture for this sample address",
+        };
+      }
+
+      return {
+        input: address,
+        normalizedAddress: stop.label,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+        status: "ok" as const,
+      };
+    });
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ results }),
+    });
+  });
+
+  await page.route("**/api/route-optimization/optimize", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      stops?: CoordinateStop[];
+      startStopId?: string;
+      endMode?: EndMode;
+      endStopId?: string;
+      routeOptimizationMode?: RouteOptimizationMode;
+    };
+    const stops = requestBody.stops ?? [];
+    const ordered = buildLocalOptimizedStopSequenceForTesting({
+      stops,
+      startStopId: requestBody.startStopId,
+      endMode: requestBody.endMode,
+      endStopId: requestBody.endStopId,
+      routeOptimizationMode: requestBody.routeOptimizationMode,
+    });
+    const start = ordered[0];
+    const end =
+      requestBody.endMode === "round_trip"
+        ? start
+        : requestBody.endMode === "selected_stop"
+          ? ordered.find((stop) => stop.id === requestBody.endStopId)
+          : undefined;
+    const fixedStopIds = new Set([start?.id, end?.id].filter(Boolean));
+    const shipmentStops = ordered.filter((stop) => !fixedStopIds.has(stop.id));
+    const routeResponse = normalizeOptimizeToursResponse(
+      {
+        routes: [
+          {
+            visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+          },
+        ],
+      },
+      shipmentStops,
+      { start, end },
+    );
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(routeResponse),
+    });
+  });
 }
 
 async function main() {
@@ -29,6 +140,7 @@ async function main() {
   });
 
   try {
+    await installOfflineApiMocks(page);
     await page.goto(baseUrl, { waitUntil: "networkidle", timeout: timeoutMs });
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: "networkidle", timeout: timeoutMs });
