@@ -462,6 +462,51 @@ function orderNearestStops(
   return ordered;
 }
 
+function getAnchorStops(stops: CoordinateStop[]) {
+  if (!stops.length) {
+    return [];
+  }
+
+  const anchors = [
+    stops.reduce((best, stop) =>
+      stop.latitude < best.latitude ? stop : best,
+    ),
+    stops.reduce((best, stop) =>
+      stop.latitude > best.latitude ? stop : best,
+    ),
+    stops.reduce((best, stop) =>
+      stop.longitude < best.longitude ? stop : best,
+    ),
+    stops.reduce((best, stop) =>
+      stop.longitude > best.longitude ? stop : best,
+    ),
+  ];
+  const seen = new Set<string>();
+
+  return anchors.filter((stop) => {
+    if (seen.has(stop.id)) {
+      return false;
+    }
+
+    seen.add(stop.id);
+    return true;
+  });
+}
+
+function orderNearestFromAnchor(
+  stops: CoordinateStop[],
+  anchor: CoordinateStop,
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  const anchoredOrder = orderNearestStops(
+    stops.filter((stop) => stop.id !== anchor.id),
+    anchor,
+  );
+
+  return orientRouteNearStart([anchor, ...anchoredOrder], start, end);
+}
+
 function reverseSegment<T>(items: T[], startIndex: number, endIndex: number) {
   while (startIndex < endIndex) {
     const item = items[startIndex];
@@ -659,8 +704,12 @@ function orderDefaultRouteStops(
   end: CoordinateStop | undefined,
 ) {
   const hilbert = orderByHilbertCurve(stops);
+  const anchorNearestCandidates = getAnchorStops(stops).map((anchor) =>
+    orderNearestFromAnchor(stops, anchor, start, end),
+  );
   const candidates = uniqueRouteCandidates([
     orderNearestStops(stops, start),
+    ...anchorNearestCandidates,
     orientRouteNearStart(hilbert, start, end),
     orientRouteNearStart([...hilbert].reverse(), start, end),
     orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "asc"), start, end),

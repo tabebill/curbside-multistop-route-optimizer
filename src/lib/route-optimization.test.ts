@@ -108,6 +108,39 @@ test("default route does not let input order scatter compact clusters", () => {
   assert(secondCluster.every((cluster) => cluster === "east"));
 });
 
+test("default route reduces long jumps when several compact clusters are interleaved", () => {
+  const clusterCenters = [
+    ["northwest", 36.2, -96.2],
+    ["northeast", 36.2, -95.8],
+    ["southwest", 35.8, -96.2],
+    ["southeast", 35.8, -95.8],
+  ] as const;
+  const clusteredStops = clusterCenters.flatMap(([name, latitude, longitude]) =>
+    Array.from({ length: 8 }, (_, index) => ({
+      id: `${name}-${index}`,
+      label: `${name} ${index}`,
+      latitude: latitude + index * 0.0002,
+      longitude: longitude + index * 0.0002,
+    })),
+  );
+  const interleavedStops = Array.from({ length: 8 }, (_, index) =>
+    clusterCenters.map(([name]) =>
+      clusteredStops.find((stop) => stop.id === `${name}-${index}`)!,
+    ),
+  ).flat();
+  const optimized = buildLocalOptimizedStopSequenceForTesting({
+    stops: interleavedStops,
+    startStopId: "northwest-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+
+  assert(
+    squaredRouteDistance(optimized) < squaredRouteDistance(interleavedStops) * 0.25,
+    "optimized route should avoid repeatedly jumping between distant clusters",
+  );
+});
+
 test("2-opt improvement does not make a nearest-next route worse", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "Start", latitude: 0, longitude: 0 },
