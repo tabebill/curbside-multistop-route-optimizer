@@ -1453,6 +1453,136 @@ function improveRouteWithSwap(
     : ordered;
 }
 
+function createDeterministicRandom(seed: number) {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+
+    return state / 0x100000000;
+  };
+}
+
+function getRuinCandidateIndexes(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+  seed: number,
+) {
+  const removalCount =
+    ordered.length > 1000
+      ? Math.min(90, Math.max(24, Math.floor(ordered.length * 0.012)))
+      : Math.min(80, Math.max(8, Math.floor(ordered.length * 0.08)));
+  const random = createDeterministicRandom(seed);
+  const indexes = new Set<number>();
+  const painfulIndexes = ordered
+    .map((stop, index) => {
+      const previous = getRouteItem(ordered, index - 1, start, end);
+      const next = getRouteItem(ordered, index + 1, start, end);
+      const edgePain =
+        getHaversineMeters(previous, stop) +
+        getHaversineMeters(stop, next) -
+        getHaversineMeters(previous, next);
+
+      return { index, score: edgePain + random() };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  for (const item of painfulIndexes.slice(0, Math.ceil(removalCount / 2))) {
+    indexes.add(item.index);
+  }
+
+  while (indexes.size < removalCount) {
+    indexes.add(Math.floor(random() * ordered.length));
+  }
+
+  return indexes;
+}
+
+function reinsertStopsByCheapestInsertion(
+  base: CoordinateStop[],
+  removed: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  const ordered = [...base];
+  const remaining = [...removed].sort((a, b) => {
+    const nearestA = ordered.length
+      ? getHaversineMeters(ordered[getNearestStopIndex(ordered, a)], a)
+      : getDistance(start, a);
+    const nearestB = ordered.length
+      ? getHaversineMeters(ordered[getNearestStopIndex(ordered, b)], b)
+      : getDistance(start, b);
+
+    return nearestB - nearestA;
+  });
+
+  for (const stop of remaining) {
+    const insertIndex = getBestInsertionIndex(ordered, stop, start, end);
+
+    ordered.splice(insertIndex, 0, stop);
+  }
+
+  return ordered;
+}
+
+function improveRouteWithRuinRecreate(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 12) {
+    return ordered;
+  }
+
+  let best = [...ordered];
+  const initialDiagnostics = getDiagnosticScore(best, start, end);
+
+  if (
+    !initialDiagnostics.issueCount &&
+    !initialDiagnostics.nearestNeighborMissCount
+  ) {
+    return ordered;
+  }
+
+  const seeds = ordered.length > 1000 ? [17, 43] : [17, 43, 89, 131];
+
+  for (const seed of seeds) {
+    const removedIndexes = getRuinCandidateIndexes(best, start, end, seed);
+    const base = best.filter((_, index) => !removedIndexes.has(index));
+    const removed = best.filter((_, index) => removedIndexes.has(index));
+
+    if (!removed.length || !base.length) {
+      continue;
+    }
+
+    const candidate = improveRouteWithRelocate(
+      improveRouteWithTwoOpt(
+        reinsertStopsByCheapestInsertion(base, removed, start, end),
+        start,
+        end,
+      ),
+      start,
+      end,
+    );
+    const bestDiagnostics = getDiagnosticScore(best, start, end);
+    const candidateDiagnostics = getDiagnosticScore(candidate, start, end);
+
+    if (
+      candidateDiagnostics.issueCount <= bestDiagnostics.issueCount &&
+      candidateDiagnostics.nearestNeighborMissCount <=
+        bestDiagnostics.nearestNeighborMissCount &&
+      candidateDiagnostics.longestLegMeters <=
+        Math.max(bestDiagnostics.longestLegMeters, 80) * 1.05 &&
+      candidateDiagnostics.score < bestDiagnostics.score
+    ) {
+      best = candidate;
+    }
+  }
+
+  return best;
+}
+
 function improveRoute(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -1468,8 +1598,13 @@ function improveRoute(
   const exchangeImproved = shouldUseExchangeMove
     ? improveRouteWithSwap(distanceImproved, start, end)
     : distanceImproved;
-  const blockImproved = improveRouteWithBlockRelocate(
+  const neighborhoodImproved = improveRouteWithRuinRecreate(
     exchangeImproved,
+    start,
+    end,
+  );
+  const blockImproved = improveRouteWithBlockRelocate(
+    neighborhoodImproved,
     start,
     end,
   );
