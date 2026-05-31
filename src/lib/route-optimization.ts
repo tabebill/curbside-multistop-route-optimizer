@@ -360,6 +360,24 @@ function scoreOrder(
   }, 0);
 }
 
+function scoreRouteMeters(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (!ordered.length) {
+    return end ? getHaversineMeters(start, end) : 0;
+  }
+
+  const routeCost = ordered.reduce((score, stop, index) => {
+    const previous = index === 0 ? start : ordered[index - 1];
+
+    return score + getHaversineMeters(previous, stop);
+  }, 0);
+
+  return routeCost + (end ? getHaversineMeters(ordered.at(-1), end) : 0);
+}
+
 function orderStreetFace(
   stops: ParsedStreetStop[],
   direction: "asc" | "desc",
@@ -479,9 +497,9 @@ function improveRouteWithTwoOpt(
         const last = best[right];
         const after = right === best.length - 1 ? end : best[right + 1];
         const currentCost =
-          getDistance(before, first) + getDistance(last, after);
+          getHaversineMeters(before, first) + getHaversineMeters(last, after);
         const candidateCost =
-          getDistance(before, last) + getDistance(first, after);
+          getHaversineMeters(before, last) + getHaversineMeters(first, after);
 
         if (candidateCost + Number.EPSILON < currentCost) {
           reverseSegment(best, left, right);
@@ -498,12 +516,169 @@ function improveRouteWithTwoOpt(
   return best;
 }
 
+function getCoordinateBounds(stops: CoordinateStop[]) {
+  return stops.reduce(
+    (bounds, stop) => ({
+      minLatitude: Math.min(bounds.minLatitude, stop.latitude),
+      maxLatitude: Math.max(bounds.maxLatitude, stop.latitude),
+      minLongitude: Math.min(bounds.minLongitude, stop.longitude),
+      maxLongitude: Math.max(bounds.maxLongitude, stop.longitude),
+    }),
+    {
+      minLatitude: Number.POSITIVE_INFINITY,
+      maxLatitude: Number.NEGATIVE_INFINITY,
+      minLongitude: Number.POSITIVE_INFINITY,
+      maxLongitude: Number.NEGATIVE_INFINITY,
+    },
+  );
+}
+
+function scaleCoordinate(value: number, min: number, max: number) {
+  if (max <= min) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(65_535, Math.round(((value - min) / (max - min)) * 65_535)),
+  );
+}
+
+function getHilbertIndex(x: number, y: number) {
+  let index = 0;
+  const side = 65_536;
+
+  for (let segment = side / 2; segment > 0; segment = Math.floor(segment / 2)) {
+    const rx = (x & segment) > 0 ? 1 : 0;
+    const ry = (y & segment) > 0 ? 1 : 0;
+
+    index += segment * segment * ((3 * rx) ^ ry);
+
+    if (ry === 0) {
+      if (rx === 1) {
+        x = side - 1 - x;
+        y = side - 1 - y;
+      }
+
+      const rotated = x;
+      x = y;
+      y = rotated;
+    }
+  }
+
+  return index;
+}
+
+function orderByHilbertCurve(stops: CoordinateStop[]) {
+  const bounds = getCoordinateBounds(stops);
+
+  return [...stops].sort((a, b) => {
+    const ax = scaleCoordinate(a.longitude, bounds.minLongitude, bounds.maxLongitude);
+    const ay = scaleCoordinate(a.latitude, bounds.minLatitude, bounds.maxLatitude);
+    const bx = scaleCoordinate(b.longitude, bounds.minLongitude, bounds.maxLongitude);
+    const by = scaleCoordinate(b.latitude, bounds.minLatitude, bounds.maxLatitude);
+
+    return getHilbertIndex(ax, ay) - getHilbertIndex(bx, by);
+  });
+}
+
+function orderByCoordinateSweep(
+  stops: CoordinateStop[],
+  primary: "latitude" | "longitude",
+  direction: "asc" | "desc",
+) {
+  const secondary = primary === "latitude" ? "longitude" : "latitude";
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  return [...stops].sort((a, b) => {
+    const primaryDelta = a[primary] - b[primary];
+
+    if (Math.abs(primaryDelta) > Number.EPSILON) {
+      return primaryDelta * multiplier;
+    }
+
+    return (a[secondary] - b[secondary]) * multiplier;
+  });
+}
+
+function orderByPolarSweep(
+  stops: CoordinateStop[],
+  direction: "asc" | "desc",
+) {
+  const center = stops.reduce(
+    (point, stop) => ({
+      latitude: point.latitude + stop.latitude / stops.length,
+      longitude: point.longitude + stop.longitude / stops.length,
+    }),
+    { latitude: 0, longitude: 0 },
+  );
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  return [...stops].sort((a, b) => {
+    const angleA = Math.atan2(a.latitude - center.latitude, a.longitude - center.longitude);
+    const angleB = Math.atan2(b.latitude - center.latitude, b.longitude - center.longitude);
+
+    return (angleA - angleB) * multiplier;
+  });
+}
+
+function orientRouteNearStart(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (ordered.length < 2) {
+    return ordered;
+  }
+
+  const reversed = [...ordered].reverse();
+
+  return scoreRouteMeters(reversed, start, end) < scoreRouteMeters(ordered, start, end)
+    ? reversed
+    : ordered;
+}
+
+function uniqueRouteCandidates(candidates: CoordinateStop[][]) {
+  const seen = new Set<string>();
+
+  return candidates.filter((candidate) => {
+    const signature = candidate.map((stop) => stop.id).join("|");
+
+    if (seen.has(signature)) {
+      return false;
+    }
+
+    seen.add(signature);
+    return true;
+  });
+}
+
 function orderDefaultRouteStops(
   stops: CoordinateStop[],
   start: CoordinateStop | undefined,
   end: CoordinateStop | undefined,
 ) {
-  return improveRouteWithTwoOpt(orderNearestStops(stops, start), start, end);
+  const hilbert = orderByHilbertCurve(stops);
+  const candidates = uniqueRouteCandidates([
+    orderNearestStops(stops, start),
+    orientRouteNearStart(hilbert, start, end),
+    orientRouteNearStart([...hilbert].reverse(), start, end),
+    orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "asc"), start, end),
+    orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "desc"), start, end),
+    orientRouteNearStart(orderByCoordinateSweep(stops, "longitude", "asc"), start, end),
+    orientRouteNearStart(orderByCoordinateSweep(stops, "longitude", "desc"), start, end),
+    orientRouteNearStart(orderByPolarSweep(stops, "asc"), start, end),
+    orientRouteNearStart(orderByPolarSweep(stops, "desc"), start, end),
+  ]);
+  const improvedCandidates = candidates.map((candidate) =>
+    improveRouteWithTwoOpt(candidate, start, end),
+  );
+
+  return improvedCandidates.reduce((best, candidate) =>
+    scoreRouteMeters(candidate, start, end) < scoreRouteMeters(best, start, end)
+      ? candidate
+      : best,
+  );
 }
 
 export function buildLocalOptimizedStopSequenceForTesting(options: {

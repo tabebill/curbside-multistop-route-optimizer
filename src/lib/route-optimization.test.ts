@@ -65,13 +65,47 @@ test("default route keeps nearby sample-address stops together before moving to 
     endMode: "last_stop",
     routeOptimizationMode: "google_optimized",
   });
+  const firstNineOrders = inputOrders(ordered.slice(0, 9));
 
-  assert.deepEqual(inputOrders(ordered.slice(0, 9)), [1, 2, 3, 4, 5, 7, 6, 8, 9]);
+  assert.deepEqual(new Set(firstNineOrders), new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]));
+  assert.deepEqual(firstNineOrders.slice(0, 5), [1, 2, 3, 4, 5]);
   assert(
     ordered.findIndex((stop) => stop.id === "5") <
       ordered.findIndex((stop) => stop.id === "15"),
     "nearby E 73 stops should be routed before the farther Owasso block",
   );
+});
+
+test("default route does not let input order scatter compact clusters", () => {
+  const stops: CoordinateStop[] = [
+    ...Array.from({ length: 10 }, (_, index) => ({
+      id: `west-${index}`,
+      label: `West ${index}`,
+      latitude: 36 + index * 0.0001,
+      longitude: -96 + index * 0.0001,
+    })),
+    ...Array.from({ length: 10 }, (_, index) => ({
+      id: `east-${index}`,
+      label: `East ${index}`,
+      latitude: 36 + index * 0.0001,
+      longitude: -95.9 + index * 0.0001,
+    })),
+  ];
+  const interleavedStops = Array.from({ length: 10 }, (_, index) => [
+    stops[index],
+    stops[index + 10],
+  ]).flat();
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops: interleavedStops,
+    startStopId: "west-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const firstCluster = ordered.slice(0, 10).map((stop) => stop.id.split("-")[0]);
+  const secondCluster = ordered.slice(10).map((stop) => stop.id.split("-")[0]);
+
+  assert(firstCluster.every((cluster) => cluster === "west"));
+  assert(secondCluster.every((cluster) => cluster === "east"));
 });
 
 test("2-opt improvement does not make a nearest-next route worse", () => {
