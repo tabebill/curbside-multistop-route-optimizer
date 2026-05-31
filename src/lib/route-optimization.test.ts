@@ -216,6 +216,34 @@ test("default route pulls a late nearby stop back into its local neighborhood", 
   );
 });
 
+test("default route keeps parsed street groups contiguous before returning to another street", () => {
+  const stops: CoordinateStop[] = [
+    { id: "main-100", label: "100 E MAIN ST TULSA 74103", latitude: 36, longitude: -96 },
+    { id: "main-102", label: "102 E MAIN ST TULSA 74103", latitude: 36.0001, longitude: -96 },
+    { id: "oak-200", label: "200 E OAK ST TULSA 74103", latitude: 36.00015, longitude: -96.0002 },
+    { id: "main-104", label: "104 E MAIN ST TULSA 74103", latitude: 36.0002, longitude: -96 },
+    { id: "oak-202", label: "202 E OAK ST TULSA 74103", latitude: 36.00025, longitude: -96.0002 },
+    { id: "main-106", label: "106 E MAIN ST TULSA 74103", latitude: 36.0003, longitude: -96 },
+    { id: "oak-204", label: "204 E OAK ST TULSA 74103", latitude: 36.00035, longitude: -96.0002 },
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "main-100",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const streetOrder = ordered.map((stop) => stop.id.split("-")[0]);
+  const mainIndexes = streetOrder
+    .map((street, index) => (street === "main" ? index : -1))
+    .filter((index) => index >= 0);
+  const oakIndexes = streetOrder
+    .map((street, index) => (street === "oak" ? index : -1))
+    .filter((index) => index >= 0);
+
+  assert.equal(Math.max(...mainIndexes) - Math.min(...mainIndexes), mainIndexes.length - 1);
+  assert.equal(Math.max(...oakIndexes) - Math.min(...oakIndexes), oakIndexes.length - 1);
+});
+
 test("2-opt improvement does not make a nearest-next route worse", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "Start", latitude: 0, longitude: 0 },

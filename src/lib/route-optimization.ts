@@ -513,7 +513,11 @@ function scoreRouteQualityAware(
     0,
   );
 
-  return scoreRouteMeters(ordered, start, end) + jumpPenalty * 3;
+  return (
+    scoreRouteMeters(ordered, start, end) +
+    jumpPenalty * 3 +
+    getStreetReentryPenaltyMeters(ordered)
+  );
 }
 
 function estimateDurationSeconds(distanceMeters: number) {
@@ -553,6 +557,32 @@ function scoreRouteMeters(
   }, 0);
 
   return routeCost + (end ? getHaversineMeters(ordered.at(-1), end) : 0);
+}
+
+function getStreetReentryPenaltyMeters(ordered: CoordinateStop[]) {
+  const closedStreetKeys = new Set<string>();
+  let previousStreetKey: string | undefined;
+  let penalty = 0;
+
+  for (const stop of ordered) {
+    const streetKey = parseStreetStop(stop)?.streetKey;
+
+    if (!streetKey) {
+      continue;
+    }
+
+    if (previousStreetKey && streetKey !== previousStreetKey) {
+      closedStreetKeys.add(previousStreetKey);
+    }
+
+    if (streetKey !== previousStreetKey && closedStreetKeys.has(streetKey)) {
+      penalty += 250;
+    }
+
+    previousStreetKey = streetKey;
+  }
+
+  return penalty;
 }
 
 function orderStreetFace(
@@ -1053,10 +1083,12 @@ function orderDefaultRouteStops(
     orderNearestFromAnchor(stops, anchor, start, end),
   );
   const cheapestInsertionCandidate = orderByCheapestInsertion(stops, start, end);
+  const streetGroupCandidate = orderCurbsideStops(stops, start);
   const candidates = uniqueRouteCandidates([
     orderNearestStops(stops, start),
     ...anchorNearestCandidates,
     ...(cheapestInsertionCandidate ? [cheapestInsertionCandidate] : []),
+    orientRouteNearStart(streetGroupCandidate, start, end),
     orientRouteNearStart(hilbert, start, end),
     orientRouteNearStart([...hilbert].reverse(), start, end),
     orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "asc"), start, end),
