@@ -137,6 +137,61 @@ function buildSeparatedNeighborhoods(): CoordinateStop[] {
   ];
 }
 
+function buildGenericLineWithNumberingGaps(): CoordinateStop[] {
+  return Array.from({ length: 48 }, (_, index) => ({
+    id: `generic-line-${index}`,
+    label: `Imported stop ${index + 1}`,
+    latitude: 36,
+    longitude: -96 + index * 0.00016,
+  }));
+}
+
+function buildGenericClusterGrid(): CoordinateStop[] {
+  return Array.from({ length: 5 }, (_, clusterIndex) =>
+    Array.from({ length: 14 }, (_, stopIndex) => ({
+      id: `generic-cluster-${clusterIndex}-${stopIndex}`,
+      label: `Parcel ${clusterIndex + 1}-${stopIndex + 1}`,
+      latitude:
+        36 +
+        Math.floor(clusterIndex / 3) * 0.006 +
+        Math.floor(stopIndex / 4) * 0.00018,
+      longitude:
+        -96 +
+        (clusterIndex % 3) * 0.006 +
+        (stopIndex % 4) * 0.00018,
+    })),
+  ).flat();
+}
+
+function buildGenericInnerPocket(): CoordinateStop[] {
+  const ringStops = Array.from({ length: 36 }, (_, index) => {
+    const angle = (index / 36) * Math.PI * 2;
+
+    return {
+      id: `generic-ring-${index}`,
+      label: `Generic outer ${index + 1}`,
+      latitude: 36 + Math.sin(angle) * 0.006,
+      longitude: -96 + Math.cos(angle) * 0.006,
+    };
+  });
+  const pocketStops = Array.from({ length: 14 }, (_, index) => {
+    const angle = (index / 14) * Math.PI * 2;
+
+    return {
+      id: `generic-pocket-${index}`,
+      label: `Generic inner ${index + 1}`,
+      latitude: 36 + Math.sin(angle) * 0.0014,
+      longitude: -96 + Math.cos(angle) * 0.0014,
+    };
+  });
+
+  return ringStops.flatMap((ringStop, index) =>
+    index % 3 === 0 && pocketStops[index / 3]
+      ? [ringStop, pocketStops[index / 3]]
+      : [ringStop],
+  );
+}
+
 const routeOptimizationMode =
   (process.env.ROUTE_RANDOM_MODE as RouteOptimizationMode | undefined) ?? "auto";
 const maxSuspiciousJumps = Number(process.env.ROUTE_RANDOM_MAX_SUSPICIOUS_JUMPS ?? 0);
@@ -159,6 +214,9 @@ const scenarios: Scenario[] = [
   { name: "culs-de-sac", stops: buildCulsDeSac() },
   { name: "corridor-branches", stops: buildLongCorridorWithBranches() },
   { name: "separated-neighborhoods", stops: buildSeparatedNeighborhoods() },
+  { name: "generic-line-gaps", stops: buildGenericLineWithNumberingGaps() },
+  { name: "generic-cluster-grid", stops: buildGenericClusterGrid() },
+  { name: "generic-inner-pocket", stops: buildGenericInnerPocket() },
   {
     name: "selected-end-serpentine",
     stops: buildSerpentineBlocks(),
