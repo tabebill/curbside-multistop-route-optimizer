@@ -2177,7 +2177,8 @@ export function buildLocalOptimizedStopSequenceForTesting(options: {
   const orderedStops =
     routeOptimizationMode === "google_optimized"
       ? orderDefaultRouteStops(shipmentStops, start, end)
-      : routeOptimizationMode === "curbside_strict"
+      : routeOptimizationMode === "curbside_strict" ||
+          routeOptimizationMode === "curbside_assisted"
         ? orderCurbsideStops(shipmentStops, start)
         : shipmentStops;
 
@@ -2547,19 +2548,59 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     start?: CoordinateStop;
     end?: CoordinateStop;
   },
+  options?: {
+    routeOptimizationMode?: RouteOptimizationMode;
+  },
 ) {
   const route = normalizeOptimizeToursResponse(rawData, shipmentStops, endpoints);
+  const seededStops =
+    options?.routeOptimizationMode === "curbside_strict"
+      ? orderCurbsideStops(shipmentStops, endpoints?.start)
+      : shipmentStops;
+  const seededRoute = buildRouteFromOrderedStops(
+    seededStops,
+    shipmentStops,
+    route,
+    endpoints,
+  );
+
+  if (options?.routeOptimizationMode === "curbside_strict") {
+    const returnedStopIds = route.visitOrder
+      .filter((visit) => visit.role !== "start" && visit.role !== "end")
+      .map((visit) => visit.stopId)
+      .join("|");
+    const seededStopIds = seededRoute.visitOrder
+      .filter((visit) => visit.role !== "start" && visit.role !== "end")
+      .map((visit) => visit.stopId)
+      .join("|");
+
+    if (returnedStopIds === seededStopIds) {
+      return route;
+    }
+
+    return {
+      ...seededRoute,
+      qualityFallback: {
+        applied: true,
+        message:
+          "Google returned a route outside the strict curbside order; using the locked curbside sequence instead.",
+        originalQualityDiagnostics: route.qualityDiagnostics,
+      },
+      validationErrors: [
+        ...seededRoute.validationErrors,
+        {
+          code: "STRICT_CURBSIDE_SEQUENCE_REPAIRED",
+          message:
+            "Google returned a route outside the strict curbside order; using the locked curbside sequence instead.",
+        },
+      ],
+    };
+  }
 
   if (!isRouteQualityPoor(route.qualityDiagnostics)) {
     return route;
   }
 
-  const seededRoute = buildRouteFromOrderedStops(
-    shipmentStops,
-    shipmentStops,
-    route,
-    endpoints,
-  );
   const repairedRoute = buildRepairedRouteFromReturnedOrder(
     route,
     shipmentStops,

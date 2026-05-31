@@ -147,10 +147,17 @@ export async function POST(request: Request) {
     return NextResponse.json(data, { status: response.status });
   }
 
-  const route = normalizeOptimizeToursResponseWithQualityFallback(data, shipmentStops, {
-    start,
-    end,
-  });
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    data,
+    shipmentStops,
+    {
+      start,
+      end,
+    },
+    {
+      routeOptimizationMode: body.routeOptimizationMode,
+    },
+  );
 
   rememberOptimizedRoute(cacheKey, route);
 

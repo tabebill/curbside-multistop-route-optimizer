@@ -151,10 +151,17 @@ export async function POST(request: Request) {
       operationName,
       outputObject: resultFile.name,
       route: {
-        ...normalizeOptimizeToursResponseWithQualityFallback(optimizeResponse, shipmentStops, {
-          start,
-          end,
-        }),
+        ...normalizeOptimizeToursResponseWithQualityFallback(
+          optimizeResponse,
+          shipmentStops,
+          {
+            start,
+            end,
+          },
+          {
+            routeOptimizationMode: body.routeOptimizationMode,
+          },
+        ),
         mode: "async",
         operationName,
       },

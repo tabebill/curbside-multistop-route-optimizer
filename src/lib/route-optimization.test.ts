@@ -742,6 +742,60 @@ test("quality fallback rejects same-street side reentry", () => {
   assert.equal(route.qualityFallback?.applied, true);
 });
 
+test("strict curbside mode keeps the locked curbside sequence", () => {
+  const shipmentStops = firstTwentySampleStops.slice(1);
+  const googleReturnedOrder = [
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "13",
+    "10",
+    "11",
+    "12",
+    "20",
+    "14",
+    "15",
+    "19",
+    "18",
+    "17",
+    "16",
+  ];
+  const shipmentIndexById = new Map(
+    shipmentStops.map((stop, shipmentIndex) => [stop.id, shipmentIndex]),
+  );
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: googleReturnedOrder.map((stopId) => ({
+            shipmentIndex: shipmentIndexById.get(stopId),
+          })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: firstTwentySampleStops[0] },
+    { routeOptimizationMode: "curbside_strict" },
+  );
+  const expected = buildLocalOptimizedStopSequenceForTesting({
+    stops: firstTwentySampleStops,
+    startStopId: "1",
+    endMode: "last_stop",
+    routeOptimizationMode: "curbside_strict",
+  }).map((stop) => stop.id);
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    expected,
+  );
+  assert.equal(route.qualityFallback?.applied, true);
+});
+
 test("default route groups both sides of the same curb before leaving the street", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "100 E SIDE ST TULSA 74103", latitude: 36, longitude: -96 },
