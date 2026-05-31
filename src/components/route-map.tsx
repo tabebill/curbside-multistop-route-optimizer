@@ -17,6 +17,7 @@ type RouteMapProps = {
   optimizedStopIds?: string[];
   routePolyline?: string;
   selectedStopId?: string;
+  navigationStopId?: string;
   onSelectStop: (stopId: string) => void;
 };
 
@@ -27,6 +28,7 @@ export function RouteMap({
   optimizedStopIds = [],
   routePolyline,
   selectedStopId,
+  navigationStopId,
   onSelectStop,
 }: RouteMapProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
@@ -147,11 +149,13 @@ export function RouteMap({
         title: stop.address || stop.normalizedAddress || `Stop ${index + 1}`,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: stop.id === selectedStopId ? 12 : 9,
+          scale: stop.id === navigationStopId ? 13 : stop.id === selectedStopId ? 12 : 9,
           fillColor:
             stop.id === currentLocationStopId
               ? "#2563eb"
-              : stop.id === selectedStopId
+              : stop.id === navigationStopId
+                ? "#7c3aed"
+                : stop.id === selectedStopId
                 ? "#b45309"
                 : "#0f766e",
           fillOpacity: 1,
@@ -184,7 +188,7 @@ export function RouteMap({
       clustererRef.current?.clearMarkers();
       markers.forEach((marker) => marker.setMap(null));
     };
-  }, [coordinateStops, optimizedOrderMap, selectedStopId, onSelectStop]);
+  }, [coordinateStops, optimizedOrderMap, selectedStopId, navigationStopId, onSelectStop]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -219,12 +223,34 @@ export function RouteMap({
     path.forEach((point) => bounds.extend(point));
     polyline.setMap(map);
     routePolylineRef.current = polyline;
-    map.fitBounds(bounds, 56);
+    if (!navigationStopId) {
+      map.fitBounds(bounds, 56);
+    }
 
     return () => {
       polyline.setMap(null);
     };
-  }, [routePolyline]);
+  }, [routePolyline, navigationStopId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map || !navigationStopId || typeof google === "undefined") {
+      return;
+    }
+
+    const activeStop = coordinateStops.find((stop) => stop.id === navigationStopId);
+
+    if (activeStop?.latitude === undefined || activeStop.longitude === undefined) {
+      return;
+    }
+
+    map.panTo({
+      lat: activeStop.latitude,
+      lng: activeStop.longitude,
+    });
+    map.setZoom(Math.max(map.getZoom() ?? 0, 18));
+  }, [coordinateStops, navigationStopId]);
 
   if (!apiKey) {
     return (

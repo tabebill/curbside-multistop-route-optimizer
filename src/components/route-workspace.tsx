@@ -704,6 +704,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     : 0;
   const currentNavigationVisit =
     optimizedRoute?.visitOrder[safeNavigationIndex] ?? optimizedRoute?.visitOrder[0];
+  const navigationStopId = currentNavigationVisit?.stopId;
 
   const addStops = useCallback((nextStops: RouteStop[]) => {
     const result = mergeDedupedStops(stops, nextStops);
@@ -1825,6 +1826,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
               optimizedStopIds={optimizedStopIds}
               routePolyline={optimizedRoute?.polyline}
               selectedStopId={selectedStopId}
+              navigationStopId={navigationStopId}
               onSelectStop={setSelectedStopId}
             />
 
