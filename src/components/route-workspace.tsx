@@ -134,7 +134,7 @@ type CurrentLocation = {
 type StatusFilter = "all" | "disabled" | "repeat" | StopStatus;
 
 const workspaceStorageKey = "multi-stop-route-optimizer.workspace.v2";
-const routeAlgorithmVersion = "nearest-refresh-v1";
+const routeAlgorithmVersion = "curbside-sweep-v1";
 const syncStopLimit = 100;
 const sampleRows = `address
 840 E 51 PL N TULSA 74126

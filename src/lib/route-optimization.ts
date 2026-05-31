@@ -236,57 +236,6 @@ function getDistance(
   return lat * lat + lng * lng;
 }
 
-function orderStopsByNearestStop(
-  stops: CoordinateStop[],
-  start: CoordinateStop | undefined,
-) {
-  const remaining = [...stops];
-  const ordered: CoordinateStop[] = [];
-  let cursor = start;
-
-  while (remaining.length) {
-    const nextIndex = remaining.reduce((bestIndex, stop, index) =>
-      getDistance(cursor, stop) < getDistance(cursor, remaining[bestIndex])
-        ? index
-        : bestIndex,
-    0);
-    const [nextStop] = remaining.splice(nextIndex, 1);
-
-    ordered.push(nextStop);
-    cursor = nextStop;
-  }
-
-  return ordered;
-}
-
-function orderVisitsByNearestStop<T extends { stopId: string }>(
-  visits: T[],
-  stops: CoordinateStop[],
-  start: CoordinateStop | undefined,
-) {
-  const stopById = new Map(stops.map((stop) => [stop.id, stop]));
-  const remaining = [...visits];
-  const ordered: T[] = [];
-  let cursor = start;
-
-  while (remaining.length) {
-    const nextIndex = remaining.reduce((bestIndex, visit, index) => {
-      const bestVisit = remaining[bestIndex];
-
-      return getDistance(cursor, stopById.get(visit.stopId)) <
-        getDistance(cursor, stopById.get(bestVisit.stopId))
-        ? index
-        : bestIndex;
-    }, 0);
-    const [nextVisit] = remaining.splice(nextIndex, 1);
-
-    ordered.push(nextVisit);
-    cursor = stopById.get(nextVisit.stopId) ?? cursor;
-  }
-
-  return ordered;
-}
-
 function scoreOrder(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -480,7 +429,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
   const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
-  const usesNearestSequenceRoute =
+  const usesCurbsideSequenceRoute =
     routeOptimizationMode === "google_optimized" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
@@ -490,8 +439,8 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesNearestSequenceRoute
-    ? orderStopsByNearestStop(unorderedShipmentStops, start)
+  const shipmentStops = usesCurbsideSequenceRoute
+    ? orderCurbsideStops(unorderedShipmentStops, start)
     : usesStrictCurbsideSequence
       ? orderCurbsideStops(unorderedShipmentStops, start)
       : unorderedShipmentStops;
@@ -503,7 +452,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
-  const refreshDetailsRoute = usesNearestSequenceRoute
+  const refreshDetailsRoute = usesCurbsideSequenceRoute
     ? getRefreshDetailsRoute(shipmentStops, tomorrow, endTime)
     : undefined;
 
@@ -585,11 +534,6 @@ export function normalizeOptimizeToursResponse(
         role: isEndpointVisit ? ("end" as const) : ("stop" as const),
       };
     }) ?? [];
-  const driverFacingVisits = orderVisitsByNearestStop(
-    middleVisits,
-    shipmentStops,
-    endpoints?.start,
-  );
   const visitOrder = [
     ...(endpoints?.start
       ? [
@@ -602,7 +546,7 @@ export function normalizeOptimizeToursResponse(
           },
         ]
       : []),
-    ...driverFacingVisits.map((visit, index) => ({
+    ...middleVisits.map((visit, index) => ({
       ...visit,
       sequence: index + (endpoints?.start ? 2 : 1),
     })),
@@ -612,7 +556,7 @@ export function normalizeOptimizeToursResponse(
             stopId: endpoints.end.id,
             label: endpoints.end.label,
             sequence:
-              driverFacingVisits.length + (endpoints?.start ? 2 : 1),
+              middleVisits.length + (endpoints?.start ? 2 : 1),
             shipmentIndex: -1,
             role: "end" as const,
           },
