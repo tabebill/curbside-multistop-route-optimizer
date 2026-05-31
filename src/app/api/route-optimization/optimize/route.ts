@@ -29,7 +29,7 @@ type OptimizeBody = {
 
 const synchronousStopLimit = 100;
 const optimizeCacheTtlMs = 10 * 60 * 1000;
-const optimizeCacheVersion = "quality-fallback-v1";
+const optimizeCacheVersion = "google-led-auto-v1";
 const optimizeCache = new Map<
   string,
   { route: ReturnType<typeof normalizeOptimizeToursResponseWithQualityFallback>; expiresAt: number }

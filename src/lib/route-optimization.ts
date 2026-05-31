@@ -2585,10 +2585,12 @@ function getSeedSolutionRoute(
 
 export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
-  const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
+  const usesCurbsideWaypoints =
+    routeOptimizationMode === "curbside_assisted" ||
+    routeOptimizationMode === "curbside_strict";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
   const usesSeededSolve =
-    routeOptimizationMode !== "curbside_strict" && !options.validateOnly;
+    routeOptimizationMode === "curbside_assisted" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
     stops,
@@ -2878,6 +2880,10 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
         },
       ],
     };
+  }
+
+  if (routeOptimizationMode === "google_optimized") {
+    return route;
   }
 
   const repairedRoute = buildRepairedRouteFromReturnedOrder(

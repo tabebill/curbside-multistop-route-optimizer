@@ -1015,7 +1015,7 @@ test("auto fallback repairs scattered street-face route returns", () => {
   assert.equal(route.qualityFallback?.applied, true);
 });
 
-test("google optimized payload seeds Google but still asks Google to solve", () => {
+test("google optimized payload lets Google solve without a local seed", () => {
   const payload = buildOptimizeToursPayload({
     stops: firstTwentySampleStops,
     startStopId: "1",
@@ -1027,12 +1027,7 @@ test("google optimized payload seeds Google but still asks Google to solve", () 
   assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
   assert.equal(payload.timeout, "20s");
   assert(!("refreshDetailsRoutes" in payload));
-  assert(Array.isArray(payload.injectedFirstSolutionRoutes));
-  assert.equal(
-    (payload.injectedFirstSolutionRoutes as Array<{ visits?: unknown[] }>)[0]
-      .visits?.length,
-    firstTwentySampleStops.length - 1,
-  );
+  assert(!("injectedFirstSolutionRoutes" in payload));
 });
 
 test("large async route payload can use a longer Google solver timeout", () => {
@@ -1050,7 +1045,7 @@ test("large async route payload can use a longer Google solver timeout", () => {
   assert.equal(getLargeRouteTimeoutSeconds("1"), 20);
 });
 
-test("auto payload uses side-of-road waypoints with a seeded solve", () => {
+test("auto payload lets Google solve without side-of-road or a local seed", () => {
   const payload = buildOptimizeToursPayload({
     stops: firstTwentySampleStops,
     startStopId: "1",
@@ -1070,11 +1065,11 @@ test("auto payload uses side-of-road waypoints with a seeded solve", () => {
 
   assert.equal(payload.solvingMode, "DEFAULT_SOLVE");
   assert.equal(payload.searchMode, "CONSUME_ALL_AVAILABLE_TIME");
-  assert(Array.isArray(payload.injectedFirstSolutionRoutes));
+  assert.equal(payload.injectedFirstSolutionRoutes, undefined);
   assert.equal(payload.injectedSolutionConstraint, undefined);
   assert.equal(
     payload.model?.shipments?.[0]?.deliveries?.[0]?.arrivalWaypoint?.sideOfRoad,
-    true,
+    undefined,
   );
 });
 
