@@ -532,6 +532,33 @@ function shouldUseFallbackRoute(
   return fallbackDiagnostics.nearestNeighborMatchRate >= routeContinuity + 0.04;
 }
 
+function getRouteQualitySortValue(route: OptimizedRoute) {
+  const diagnostics = route.qualityDiagnostics;
+
+  return {
+    issueCount: diagnostics?.issueCount ?? Number.POSITIVE_INFINITY,
+    continuity: diagnostics?.nearestNeighborMatchRate ?? 0,
+    distanceMeters: route.distanceMeters || Number.POSITIVE_INFINITY,
+  };
+}
+
+function chooseBestQualityRoute(routes: OptimizedRoute[]) {
+  return routes.reduce((best, current) => {
+    const bestQuality = getRouteQualitySortValue(best);
+    const currentQuality = getRouteQualitySortValue(current);
+
+    if (currentQuality.issueCount !== bestQuality.issueCount) {
+      return currentQuality.issueCount < bestQuality.issueCount ? current : best;
+    }
+
+    if (currentQuality.continuity !== bestQuality.continuity) {
+      return currentQuality.continuity > bestQuality.continuity ? current : best;
+    }
+
+    return currentQuality.distanceMeters < bestQuality.distanceMeters ? current : best;
+  });
+}
+
 function buildSyntheticVisitOrder(
   ordered: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -1806,6 +1833,72 @@ export function normalizeOptimizeToursResponse(
   };
 }
 
+function buildRouteFromOrderedStops(
+  orderedStops: CoordinateStop[],
+  shipmentStops: CoordinateStop[],
+  route: OptimizedRoute,
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+) {
+  const shipmentIndexById = new Map(
+    shipmentStops.map((stop, index) => [stop.id, index]),
+  );
+
+  return normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: orderedStops
+            .map((stop) => shipmentIndexById.get(stop.id))
+            .filter((index): index is number => index !== undefined)
+            .map((shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+      skippedShipments: Array.from({ length: route.skippedShipmentCount }),
+      validationErrors: route.validationErrors,
+    },
+    shipmentStops,
+    endpoints,
+  );
+}
+
+function buildRepairedRouteFromReturnedOrder(
+  route: OptimizedRoute,
+  shipmentStops: CoordinateStop[],
+  endpoints?: {
+    start?: CoordinateStop;
+    end?: CoordinateStop;
+  },
+) {
+  const stopById = new Map(shipmentStops.map((stop) => [stop.id, stop]));
+  const seen = new Set<string>();
+  const returnedStops = route.visitOrder
+    .map((visit) => stopById.get(visit.stopId))
+    .filter((stop): stop is CoordinateStop => {
+      if (!stop || seen.has(stop.id)) {
+        return false;
+      }
+
+      seen.add(stop.id);
+      return true;
+    });
+  const missingStops = shipmentStops.filter((stop) => !seen.has(stop.id));
+
+  if (returnedStops.length + missingStops.length !== shipmentStops.length) {
+    return undefined;
+  }
+
+  const repairedStops = improveRoute(
+    [...returnedStops, ...missingStops],
+    endpoints?.start,
+    endpoints?.end,
+  );
+
+  return buildRouteFromOrderedStops(repairedStops, shipmentStops, route, endpoints);
+}
+
 export function normalizeOptimizeToursResponseWithQualityFallback(
   rawData: unknown,
   shipmentStops: CoordinateStop[],
@@ -1820,18 +1913,21 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
     return route;
   }
 
-  const fallbackRoute = normalizeOptimizeToursResponse(
-    {
-      routes: [
-        {
-          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
-        },
-      ],
-      skippedShipments: Array.from({ length: route.skippedShipmentCount }),
-      validationErrors: route.validationErrors,
-    },
+  const seededRoute = buildRouteFromOrderedStops(
+    shipmentStops,
+    shipmentStops,
+    route,
+    endpoints,
+  );
+  const repairedRoute = buildRepairedRouteFromReturnedOrder(
+    route,
     shipmentStops,
     endpoints,
+  );
+  const fallbackRoute = chooseBestQualityRoute(
+    [seededRoute, repairedRoute].filter(
+      (candidate): candidate is OptimizedRoute => Boolean(candidate),
+    ),
   );
 
   if (
@@ -1844,7 +1940,7 @@ export function normalizeOptimizeToursResponseWithQualityFallback(
   }
 
   const fallbackMessage =
-    "Google returned a route with scattered nearby stops; using the seeded local order instead.";
+    "Google returned a route with scattered nearby stops; using a locally repaired order instead.";
 
   return {
     ...fallbackRoute,

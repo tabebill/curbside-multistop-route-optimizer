@@ -582,6 +582,55 @@ test("quality fallback rejects routes between the old and strict continuity gate
   );
 });
 
+test("quality fallback repairs Google order before falling back to seeded input order", () => {
+  const groupA = Array.from({ length: 6 }, (_, index) => ({
+    id: `repair-a-${index}`,
+    label: `${100 + index * 2} E REPAIR A ST TULSA 74103`,
+    latitude: 36,
+    longitude: -96 + index * 0.001,
+  }));
+  const groupB = Array.from({ length: 6 }, (_, index) => ({
+    id: `repair-b-${index}`,
+    label: `${200 + index * 2} E REPAIR B ST TULSA 74103`,
+    latitude: 36.1,
+    longitude: -96 + index * 0.001,
+  }));
+  const interleavedInput = groupA.flatMap((stop, index) => [stop, groupB[index]]);
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            { shipmentIndex: 0 },
+            { shipmentIndex: 6 },
+            { shipmentIndex: 2 },
+            { shipmentIndex: 4 },
+            { shipmentIndex: 8 },
+            { shipmentIndex: 10 },
+            { shipmentIndex: 1 },
+            { shipmentIndex: 7 },
+            { shipmentIndex: 3 },
+            { shipmentIndex: 5 },
+            { shipmentIndex: 9 },
+            { shipmentIndex: 11 },
+          ],
+        },
+      ],
+    },
+    interleavedInput,
+  );
+
+  assert.equal(route.qualityFallback?.applied, true);
+  assert.notDeepEqual(
+    route.visitOrder.map((visit) => visit.stopId),
+    interleavedInput.map((stop) => stop.id),
+  );
+  assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert(
+    (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
+  );
+});
+
 test("route quality diagnostics stay clean for optimized first twenty sample stops", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
