@@ -1,5 +1,9 @@
-import { readFileSync } from "node:fs";
-import type { GeocodeResult, OptimizedRoute } from "@/lib/route-types";
+import { existsSync, readFileSync } from "node:fs";
+import {
+  buildLocalOptimizedStopSequenceForTesting,
+  normalizeOptimizeToursResponse,
+} from "@/lib/route-optimization";
+import type { CoordinateStop, GeocodeResult, OptimizedRoute } from "@/lib/route-types";
 
 type GeocodeResponse = {
   results?: GeocodeResult[];
@@ -17,6 +21,9 @@ function isOptimizedRoute(value: OptimizedRoute | OptimizeError): value is Optim
 
 const baseUrl = process.env.ROUTE_SAMPLE_BASE_URL ?? "http://localhost:3000";
 const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
+const sampleStopsFile =
+  process.env.ROUTE_SAMPLE_STOPS_FILE ?? "scripts/fixtures/sample-stops.json";
+const useLiveApi = process.env.ROUTE_SAMPLE_USE_LIVE_API === "1";
 const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
@@ -56,6 +63,20 @@ async function postJson<T>(path: string, body: unknown) {
 }
 
 async function geocodeAddresses() {
+  if (!useLiveApi && existsSync(sampleStopsFile)) {
+    const fixture = JSON.parse(readFileSync(sampleStopsFile, "utf8")) as {
+      stops?: CoordinateStop[];
+    };
+
+    return (fixture.stops ?? []).map((stop) => ({
+      input: stop.label,
+      normalizedAddress: stop.label,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      status: "ok" as const,
+    }));
+  }
+
   const results: GeocodeResult[] = [];
 
   for (let index = 0; index < addresses.length; index += 25) {
@@ -69,6 +90,46 @@ async function geocodeAddresses() {
   }
 
   return results;
+}
+
+async function optimizeStops(stops: CoordinateStop[]) {
+  if (useLiveApi) {
+    const route = await postJson<OptimizedRoute | OptimizeError>(
+      "/api/route-optimization/optimize",
+      {
+        stops,
+        startStopId: stops[0]?.id,
+        endMode: "last_stop",
+        routeOptimizationMode: "auto",
+      },
+    );
+
+    if (!isOptimizedRoute(route)) {
+      throw new Error(JSON.stringify(route));
+    }
+
+    return route;
+  }
+
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: stops[0]?.id,
+    endMode: "last_stop",
+    routeOptimizationMode: "auto",
+  });
+  const shipmentStops = ordered.slice(1);
+
+  return normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: ordered[0] },
+  );
 }
 
 async function main() {
@@ -104,19 +165,7 @@ async function main() {
     process.exit(1);
   }
 
-  const route = await postJson<OptimizedRoute | OptimizeError>(
-    "/api/route-optimization/optimize",
-    {
-      stops,
-      startStopId: stops[0]?.id,
-      endMode: "last_stop",
-      routeOptimizationMode: "auto",
-    },
-  );
-
-  if (!isOptimizedRoute(route)) {
-    throw new Error(JSON.stringify(route));
-  }
+  const route = await optimizeStops(stops);
 
   const orderedStopIds = route.visitOrder.map((visit) => visit.stopId);
   const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;

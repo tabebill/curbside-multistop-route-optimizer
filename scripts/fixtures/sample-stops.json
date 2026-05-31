@@ -1,0 +1,606 @@
+{
+  "source": "sample-addresses.txt",
+  "generatedAt": "2026-05-31",
+  "stops": [
+    {
+      "id": "1",
+      "label": "7500 N Oakcliff Dr, Tulsa, OK 74126, USA",
+      "latitude": 36.2614501,
+      "longitude": -95.99914629999999
+    },
+    {
+      "id": "2",
+      "label": "7474 N Oakcliff Dr, Tulsa, OK 74126, USA",
+      "latitude": 36.2606661,
+      "longitude": -95.99814409999999
+    },
+    {
+      "id": "3",
+      "label": "7373 N Oakcliff Dr, Tulsa, OK 74126, USA",
+      "latitude": 36.262695,
+      "longitude": -95.995138
+    },
+    {
+      "id": "4",
+      "label": "600 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2623555,
+      "longitude": -95.98516830000001
+    },
+    {
+      "id": "5",
+      "label": "619 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2606424,
+      "longitude": -95.98446109999999
+    },
+    {
+      "id": "6",
+      "label": "608 E 73rd St N, Tulsa, OK 74126-1248, USA",
+      "latitude": 36.2595589,
+      "longitude": -95.9846482
+    },
+    {
+      "id": "7",
+      "label": "622 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2601136,
+      "longitude": -95.9842109
+    },
+    {
+      "id": "8",
+      "label": "740 E 73rd St N, Tulsa, OK 74126-1246, USA",
+      "latitude": 36.2600722,
+      "longitude": -95.983024
+    },
+    {
+      "id": "9",
+      "label": "780 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2592683,
+      "longitude": -95.9817319
+    },
+    {
+      "id": "10",
+      "label": "7404 N Iroquois Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.26258370000001,
+      "longitude": -95.982055
+    },
+    {
+      "id": "11",
+      "label": "730 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2636286,
+      "longitude": -95.9823194
+    },
+    {
+      "id": "12",
+      "label": "7512 N Iroquois Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2633639,
+      "longitude": -95.98169539999999
+    },
+    {
+      "id": "13",
+      "label": "7305 N Iroquois Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.260969,
+      "longitude": -95.9809221
+    },
+    {
+      "id": "14",
+      "label": "1104 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2637064,
+      "longitude": -95.97564729999999
+    },
+    {
+      "id": "15",
+      "label": "7542 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2638026,
+      "longitude": -95.9751381
+    },
+    {
+      "id": "16",
+      "label": "7509 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2626965,
+      "longitude": -95.97468289999999
+    },
+    {
+      "id": "17",
+      "label": "7506 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.26241419999999,
+      "longitude": -95.9751399
+    },
+    {
+      "id": "18",
+      "label": "7512 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.26262699999999,
+      "longitude": -95.9751335
+    },
+    {
+      "id": "19",
+      "label": "7518 N Owasso Pl, Tulsa, OK 74126-1206, USA",
+      "latitude": 36.2628872,
+      "longitude": -95.9751486
+    },
+    {
+      "id": "20",
+      "label": "1100 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2637415,
+      "longitude": -95.9764964
+    },
+    {
+      "id": "21",
+      "label": "7524 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.26308909999999,
+      "longitude": -95.9753669
+    },
+    {
+      "id": "22",
+      "label": "7517 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2628953,
+      "longitude": -95.97466399999999
+    },
+    {
+      "id": "23",
+      "label": "7523 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2631416,
+      "longitude": -95.9746618
+    },
+    {
+      "id": "24",
+      "label": "7530 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2633518,
+      "longitude": -95.975135
+    },
+    {
+      "id": "25",
+      "label": "7536 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2635607,
+      "longitude": -95.97513560000002
+    },
+    {
+      "id": "26",
+      "label": "7529 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2633506,
+      "longitude": -95.97468409999999
+    },
+    {
+      "id": "27",
+      "label": "7535 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2636367,
+      "longitude": -95.9746618
+    },
+    {
+      "id": "28",
+      "label": "7507 N Owasso Pl, Tulsa, OK 74126, USA",
+      "latitude": 36.2624798,
+      "longitude": -95.9746894
+    },
+    {
+      "id": "29",
+      "label": "7541 N Owasso Pl, Tulsa, OK 74126-1205, USA",
+      "latitude": 36.2638262,
+      "longitude": -95.9746637
+    },
+    {
+      "id": "30",
+      "label": "7542 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2638261,
+      "longitude": -95.97401219999999
+    },
+    {
+      "id": "31",
+      "label": "7534 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.263388,
+      "longitude": -95.9740032
+    },
+    {
+      "id": "32",
+      "label": "7541 N Peoria Ave, Tulsa, OK 74126-1262, USA",
+      "latitude": 36.2638304,
+      "longitude": -95.9733088
+    },
+    {
+      "id": "33",
+      "label": "7536 N Peoria Ave, Tulsa, OK 74126-1263, USA",
+      "latitude": 36.2636247,
+      "longitude": -95.97401049999999
+    },
+    {
+      "id": "34",
+      "label": "7502 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2624718,
+      "longitude": -95.9740484
+    },
+    {
+      "id": "35",
+      "label": "7318 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2620647,
+      "longitude": -95.9740349
+    },
+    {
+      "id": "36",
+      "label": "1218 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.261519,
+      "longitude": -95.97431100000001
+    },
+    {
+      "id": "37",
+      "label": "7306 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2611706,
+      "longitude": -95.97400929999999
+    },
+    {
+      "id": "38",
+      "label": "7242 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2607459,
+      "longitude": -95.9740444
+    },
+    {
+      "id": "39",
+      "label": "7508 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2626962,
+      "longitude": -95.9740338
+    },
+    {
+      "id": "40",
+      "label": "7510 N Peoria Ave, Tulsa, OK 74126-1263, USA",
+      "latitude": 36.2629152,
+      "longitude": -95.97401409999999
+    },
+    {
+      "id": "41",
+      "label": "7247 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.26023259999999,
+      "longitude": -95.9733488
+    },
+    {
+      "id": "42",
+      "label": "7245 N Peoria Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2600645,
+      "longitude": -95.9733631
+    },
+    {
+      "id": "43",
+      "label": "1307 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2606098,
+      "longitude": -95.9729426
+    },
+    {
+      "id": "44",
+      "label": "1407 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2605882,
+      "longitude": -95.97261999999999
+    },
+    {
+      "id": "45",
+      "label": "1404 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2602544,
+      "longitude": -95.97274879999999
+    },
+    {
+      "id": "46",
+      "label": "1401 E 75th St N, Tulsa, OK 74126-1235, USA",
+      "latitude": 36.2624497,
+      "longitude": -95.9730343
+    },
+    {
+      "id": "47",
+      "label": "1407 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.26242939999999,
+      "longitude": -95.97271769999999
+    },
+    {
+      "id": "48",
+      "label": "1404 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2619789,
+      "longitude": -95.972757
+    },
+    {
+      "id": "49",
+      "label": "1413 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2606054,
+      "longitude": -95.9724158
+    },
+    {
+      "id": "50",
+      "label": "1415 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2607038,
+      "longitude": -95.97220159999999
+    },
+    {
+      "id": "51",
+      "label": "1408 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.260071,
+      "longitude": -95.9725672
+    },
+    {
+      "id": "52",
+      "label": "1416 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2620157,
+      "longitude": -95.97231900000001
+    },
+    {
+      "id": "53",
+      "label": "1425 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2605857,
+      "longitude": -95.9715762
+    },
+    {
+      "id": "54",
+      "label": "1424 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.260241,
+      "longitude": -95.9719405
+    },
+    {
+      "id": "55",
+      "label": "1503 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2623389,
+      "longitude": -95.97190839999999
+    },
+    {
+      "id": "56",
+      "label": "1507 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2624602,
+      "longitude": -95.9716577
+    },
+    {
+      "id": "57",
+      "label": "1508 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2617509,
+      "longitude": -95.97162039999999
+    },
+    {
+      "id": "58",
+      "label": "1545 E 73rd St N, Tulsa, OK 74126-1240, USA",
+      "latitude": 36.2606373,
+      "longitude": -95.9708543
+    },
+    {
+      "id": "59",
+      "label": "1512 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2619607,
+      "longitude": -95.97136780000001
+    },
+    {
+      "id": "60",
+      "label": "1524 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2620091,
+      "longitude": -95.9708746
+    },
+    {
+      "id": "61",
+      "label": "1408 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2637835,
+      "longitude": -95.972498
+    },
+    {
+      "id": "62",
+      "label": "1410 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2638022,
+      "longitude": -95.97227079999999
+    },
+    {
+      "id": "63",
+      "label": "1504 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2637499,
+      "longitude": -95.9716138
+    },
+    {
+      "id": "64",
+      "label": "1512 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2635938,
+      "longitude": -95.97129059999999
+    },
+    {
+      "id": "65",
+      "label": "1516 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.2636531,
+      "longitude": -95.97088959999999
+    },
+    {
+      "id": "66",
+      "label": "1518 E 76th St N, Sperry, OK 74073, USA",
+      "latitude": 36.26364300000001,
+      "longitude": -95.97054399999999
+    },
+    {
+      "id": "67",
+      "label": "1525 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.26249730000001,
+      "longitude": -95.9709096
+    },
+    {
+      "id": "68",
+      "label": "1533 E 75th St N, Tulsa, OK 74126-1233, USA",
+      "latitude": 36.2624559,
+      "longitude": -95.97054229999999
+    },
+    {
+      "id": "69",
+      "label": "1536 E 75th St N, Tulsa, OK 74126-1234, USA",
+      "latitude": 36.262037,
+      "longitude": -95.97038719999999
+    },
+    {
+      "id": "70",
+      "label": "1537 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2624581,
+      "longitude": -95.9701126
+    },
+    {
+      "id": "71",
+      "label": "1547 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.262452,
+      "longitude": -95.96972369999999
+    },
+    {
+      "id": "72",
+      "label": "7424 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2619834,
+      "longitude": -95.969473
+    },
+    {
+      "id": "73",
+      "label": "7539 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2636177,
+      "longitude": -95.96889600000002
+    },
+    {
+      "id": "74",
+      "label": "7548 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2632812,
+      "longitude": -95.9694536
+    },
+    {
+      "id": "75",
+      "label": "7403 N Trenton Ave, Tulsa, OK 74126-1213, USA",
+      "latitude": 36.2614026,
+      "longitude": -95.96889519999999
+    },
+    {
+      "id": "76",
+      "label": "7407 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2615365,
+      "longitude": -95.96863979999999
+    },
+    {
+      "id": "77",
+      "label": "7411 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2616876,
+      "longitude": -95.96891
+    },
+    {
+      "id": "78",
+      "label": "7527 N Trenton Ave, Tulsa, OK 74126-1215, USA",
+      "latitude": 36.26303800000001,
+      "longitude": -95.96880499999999
+    },
+    {
+      "id": "79",
+      "label": "7413 N Trenton Ave, Tulsa, OK 74126, USA",
+      "latitude": 36.2618296,
+      "longitude": -95.968868
+    },
+    {
+      "id": "80",
+      "label": "7415 N Trenton Ave, Tulsa, OK 74126-1213, USA",
+      "latitude": 36.2619925,
+      "longitude": -95.96882269999999
+    },
+    {
+      "id": "81",
+      "label": "1609 E 75th St N, Tulsa, OK 74126-1231, USA",
+      "latitude": 36.2625143,
+      "longitude": -95.9688041
+    },
+    {
+      "id": "82",
+      "label": "1622 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2620086,
+      "longitude": -95.9683184
+    },
+    {
+      "id": "83",
+      "label": "1617 E 75th St N, Tulsa, OK 74126-1231, USA",
+      "latitude": 36.2624597,
+      "longitude": -95.9684159
+    },
+    {
+      "id": "84",
+      "label": "1621 E 75th St N, Tulsa, OK 74126-1231, USA",
+      "latitude": 36.262543,
+      "longitude": -95.968203
+    },
+    {
+      "id": "85",
+      "label": "1634 E 75th Pl N, Tulsa, OK 74126, USA",
+      "latitude": 36.2630929,
+      "longitude": -95.9676145
+    },
+    {
+      "id": "86",
+      "label": "1633 E 75th St N, Tulsa, OK 74126-1231, USA",
+      "latitude": 36.2624614,
+      "longitude": -95.96796479999999
+    },
+    {
+      "id": "87",
+      "label": "1643 E 75th St N, Tulsa, OK 74126-1231, USA",
+      "latitude": 36.2624631,
+      "longitude": -95.96759879999999
+    },
+    {
+      "id": "88",
+      "label": "1634 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2619915,
+      "longitude": -95.9678129
+    },
+    {
+      "id": "89",
+      "label": "1638 E 75th Pl N, Tulsa, OK 74126-1230, USA",
+      "latitude": 36.263134,
+      "longitude": -95.96740489999999
+    },
+    {
+      "id": "90",
+      "label": "1646 E 75th Pl N, Tulsa, OK 74126, USA",
+      "latitude": 36.2631356,
+      "longitude": -95.96698049999999
+    },
+    {
+      "id": "91",
+      "label": "1644 E 75th St N, Tulsa, OK 74126-1232, USA",
+      "latitude": 36.2620169,
+      "longitude": -95.9673399
+    },
+    {
+      "id": "92",
+      "label": "1647 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.26246769999999,
+      "longitude": -95.96718349999999
+    },
+    {
+      "id": "93",
+      "label": "1660 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2619652,
+      "longitude": -95.9667391
+    },
+    {
+      "id": "94",
+      "label": "1661 E 75th St N, Tulsa, OK 74126, USA",
+      "latitude": 36.262409,
+      "longitude": -95.96662270000002
+    },
+    {
+      "id": "95",
+      "label": "1645 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2606436,
+      "longitude": -95.96754589999999
+    },
+    {
+      "id": "96",
+      "label": "1647 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2606408,
+      "longitude": -95.96733680000001
+    },
+    {
+      "id": "97",
+      "label": "1649 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2607434,
+      "longitude": -95.9671459
+    },
+    {
+      "id": "98",
+      "label": "1648 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2598323,
+      "longitude": -95.967524
+    },
+    {
+      "id": "99",
+      "label": "1652 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2601832,
+      "longitude": -95.9672341
+    },
+    {
+      "id": "100",
+      "label": "1654 E 73rd St N, Tulsa, OK 74126, USA",
+      "latitude": 36.2596422,
+      "longitude": -95.96717509999999
+    }
+  ]
+}

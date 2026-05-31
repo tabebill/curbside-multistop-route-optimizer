@@ -1,4 +1,8 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import {
+  buildLocalOptimizedStopSequenceForTesting,
+  normalizeOptimizeToursResponse,
+} from "@/lib/route-optimization";
 import type {
   CoordinateStop,
   EndMode,
@@ -45,6 +49,9 @@ function shuffleStops<T>(items: T[], seed: number) {
 
 const baseUrl = process.env.ROUTE_SAMPLE_BASE_URL ?? "http://localhost:3000";
 const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
+const sampleStopsFile =
+  process.env.ROUTE_SAMPLE_STOPS_FILE ?? "scripts/fixtures/sample-stops.json";
+const useLiveApi = process.env.ROUTE_SAMPLE_USE_LIVE_API === "1";
 const shuffleCount = Math.max(
   1,
   Math.round(Number(process.env.ROUTE_SAMPLE_SHUFFLES ?? 8)),
@@ -91,6 +98,20 @@ async function postJson<T>(path: string, body: unknown) {
 }
 
 async function geocodeAddresses() {
+  if (!useLiveApi && existsSync(sampleStopsFile)) {
+    const fixture = JSON.parse(readFileSync(sampleStopsFile, "utf8")) as {
+      stops?: CoordinateStop[];
+    };
+
+    return (fixture.stops ?? []).map((stop) => ({
+      input: stop.label,
+      normalizedAddress: stop.label,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      status: "ok" as const,
+    }));
+  }
+
   const results: GeocodeResult[] = [];
 
   for (let index = 0; index < addresses.length; index += 25) {
@@ -112,6 +133,37 @@ async function optimizeStops(
   startStopId: string | undefined,
   endStopId: string | undefined,
 ) {
+  if (!useLiveApi) {
+    const ordered = buildLocalOptimizedStopSequenceForTesting({
+      stops,
+      startStopId,
+      endMode,
+      endStopId: endMode === "selected_stop" ? endStopId : undefined,
+      routeOptimizationMode: "auto",
+    });
+    const start = ordered[0];
+    const end =
+      endMode === "round_trip"
+        ? start
+        : endMode === "selected_stop"
+          ? ordered.find((stop) => stop.id === endStopId)
+          : undefined;
+    const fixedStopIds = new Set([start?.id, end?.id].filter(Boolean));
+    const shipmentStops = ordered.filter((stop) => !fixedStopIds.has(stop.id));
+
+    return normalizeOptimizeToursResponse(
+      {
+        routes: [
+          {
+            visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+          },
+        ],
+      },
+      shipmentStops,
+      { start, end },
+    );
+  }
+
   const route = await postJson<OptimizedRoute | OptimizeError>(
     "/api/route-optimization/optimize",
     {
