@@ -17,6 +17,12 @@ function getMaxSuspiciousJumps() {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
 }
 
+function getShuffleCount() {
+  const value = Number(process.env.ROUTE_BENCHMARK_SHUFFLES ?? 1);
+
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : 1;
+}
+
 function getRouteOptimizationMode(): RouteOptimizationMode {
   const value = process.env.ROUTE_BENCHMARK_MODE;
 
@@ -43,55 +49,116 @@ function buildSyntheticStops(count: number): CoordinateStop[] {
   });
 }
 
+function createSeededRandom(seed: number) {
+  let state = seed;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function shuffleStops<T>(items: T[], seed: number) {
+  const shuffled = [...items];
+  const random = createSeededRandom(seed);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    const item = shuffled[index];
+    shuffled[index] = shuffled[swapIndex];
+    shuffled[swapIndex] = item;
+  }
+
+  return shuffled;
+}
+
+function benchmarkStops(
+  stops: CoordinateStop[],
+  startStopId: string,
+  routeOptimizationMode: RouteOptimizationMode,
+) {
+  const startedAt = performance.now();
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId,
+    endMode: "last_stop",
+    routeOptimizationMode,
+  });
+  const elapsedMs = performance.now() - startedAt;
+  const shipmentStops = ordered.slice(1);
+  const route = normalizeOptimizeToursResponse(
+    {
+      routes: [
+        {
+          visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: ordered[0] },
+  );
+  const uniqueStops = new Set(ordered.map((stop) => stop.id)).size;
+
+  return {
+    ordered,
+    uniqueStops,
+    elapsedMs: Math.round(elapsedMs),
+    route,
+  };
+}
+
 const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
 const routeOptimizationMode = getRouteOptimizationMode();
+const shuffleCount = getShuffleCount();
 const stops = buildSyntheticStops(stopCount);
-const startedAt = performance.now();
-const ordered = buildLocalOptimizedStopSequenceForTesting({
-  stops,
-  startStopId: stops[0].id,
-  endMode: "last_stop",
-  routeOptimizationMode,
+const startStopId = stops[0].id;
+const runs = Array.from({ length: shuffleCount }, (_, index) => {
+  const seed = index + 1;
+  const runStops = seed === 1 ? stops : shuffleStops(stops, seed);
+  const { ordered, uniqueStops, elapsedMs, route } = benchmarkStops(
+    runStops,
+    startStopId,
+    routeOptimizationMode,
+  );
+  const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+
+  return {
+    seed,
+    orderedStops: ordered.length,
+    uniqueStops,
+    elapsedMs,
+    suspiciousJumps,
+    longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
+    medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
+    issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
+    firstTen: ordered.slice(0, 10).map((stop) => stop.id),
+    lastTen: ordered.slice(-10).map((stop) => stop.id),
+  };
 });
-const elapsedMs = performance.now() - startedAt;
-const shipmentStops = ordered.slice(1);
-const route = normalizeOptimizeToursResponse(
-  {
-    routes: [
-      {
-        visits: shipmentStops.map((_, shipmentIndex) => ({ shipmentIndex })),
-      },
-    ],
-  },
-  shipmentStops,
-  { start: ordered[0] },
-);
-const uniqueStops = new Set(ordered.map((stop) => stop.id)).size;
-const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
 const result = {
   routeOptimizationMode,
   requestedStops: stopCount,
-  orderedStops: ordered.length,
-  uniqueStops,
-  elapsedMs: Math.round(elapsedMs),
-  suspiciousJumps,
   maxSuspiciousJumps,
-  longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
-  medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
-  issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
-  firstTen: ordered.slice(0, 10).map((stop) => stop.id),
-  lastTen: ordered.slice(-10).map((stop) => stop.id),
+  shuffleCount,
+  startStopId,
+  runs,
 };
 
 console.log(JSON.stringify(result, null, 2));
 
-if (ordered.length !== stopCount || uniqueStops !== stopCount) {
-  console.error("Route benchmark failed: ordered stops are missing or duplicated.");
-  process.exitCode = 1;
-}
+for (const run of runs) {
+  if (run.orderedStops !== stopCount || run.uniqueStops !== stopCount) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: ordered stops are missing or duplicated.`,
+    );
+    process.exitCode = 1;
+  }
 
-if (suspiciousJumps > maxSuspiciousJumps) {
-  console.error("Route benchmark failed: suspicious jump count exceeded threshold.");
-  process.exitCode = 1;
+  if (run.suspiciousJumps > maxSuspiciousJumps) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: suspicious jump count exceeded threshold.`,
+    );
+    process.exitCode = 1;
+  }
 }
