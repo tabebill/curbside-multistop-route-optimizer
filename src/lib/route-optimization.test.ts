@@ -204,6 +204,27 @@ test("default route stays clean when real sample-address imports arrive shuffled
   }
 });
 
+test("default route takes nearby cross-street stops before distant same-street stops", () => {
+  const stops: CoordinateStop[] = [
+    { id: "start", label: "1104 E 76 ST N TULSA 74126", latitude: 36.263706, longitude: -95.975647 },
+    { id: "near", label: "7542 N OWASSO PL E TULSA 74126", latitude: 36.263803, longitude: -95.975138 },
+    { id: "far-1", label: "1408 E 76 ST N TULSA 74126", latitude: 36.263719, longitude: -95.972521 },
+    { id: "far-2", label: "1410 E 76 ST N TULSA 74126", latitude: 36.263718, longitude: -95.972301 },
+  ];
+  const ordered = buildLocalOptimizedStopSequenceForTesting({
+    stops,
+    startStopId: "start",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+
+  assert.deepEqual(
+    ordered.map((stop) => stop.id).slice(0, 2),
+    ["start", "near"],
+  );
+  assert.equal(getRouteDiagnostics(ordered)?.nearestNeighborMissCount, 0);
+});
+
 test("default route does not let input order scatter compact clusters", () => {
   const stops: CoordinateStop[] = [
     ...Array.from({ length: 10 }, (_, index) => ({
@@ -652,9 +673,61 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
   assert(
     (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
   );
+});
+
+test("quality fallback rejects same-street side reentry", () => {
+  const shipmentStops = firstTwentySampleStops.slice(1);
+  const shipmentIndexById = new Map(
+    shipmentStops.map((stop, shipmentIndex) => [stop.id, shipmentIndex]),
+  );
+  const route = normalizeOptimizeToursResponseWithQualityFallback(
+    {
+      routes: [
+        {
+          visits: [
+            "2",
+            "3",
+            "4",
+            "11",
+            "6",
+            "5",
+            "7",
+            "8",
+            "9",
+            "13",
+            "10",
+            "12",
+            "20",
+            "14",
+            "15",
+            "19",
+            "16",
+            "18",
+            "17",
+          ].map((stopId) => ({
+            shipmentIndex: shipmentIndexById.get(stopId),
+          })),
+        },
+      ],
+    },
+    shipmentStops,
+    { start: firstTwentySampleStops[0] },
+  );
+
+  assert.deepEqual(
+    route.visitOrder.map((visit) => visit.stopId).slice(-5),
+    ["15", "19", "18", "17", "16"],
+  );
+  assert.equal(
+    route.qualityFallback?.originalQualityDiagnostics?.streetFaceReentryCount,
+    2,
+  );
+  assert.equal(route.qualityDiagnostics?.streetFaceReentryCount, 0);
+  assert.equal(route.qualityFallback?.applied, true);
 });
 
 test("google optimized payload seeds Google but still asks Google to solve", () => {

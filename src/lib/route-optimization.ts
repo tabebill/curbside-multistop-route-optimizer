@@ -433,6 +433,9 @@ function analyzeRouteQuality(
   const nearestNeighborMatchCount = nearestNeighborResults.filter(Boolean).length;
   const nearestNeighborMissCount =
     nearestNeighborResults.length - nearestNeighborMatchCount;
+  const orderedStops = visitOrder
+    .map((visit) => getCoordinateForVisit(visit, stopsById, endpoints))
+    .filter((stop): stop is CoordinateStop => Boolean(stop));
   const issues = legs.flatMap((leg, legIndex) => {
     if (leg.distanceMeters <= 805) {
       return [];
@@ -488,6 +491,7 @@ function analyzeRouteQuality(
       : 1,
     nearestNeighborMatchCount,
     nearestNeighborMissCount,
+    streetFaceReentryCount: getStreetFaceReentryCount(orderedStops),
     issues,
   };
 }
@@ -499,6 +503,7 @@ function isRouteQualityPoor(diagnostics: RouteQualityDiagnostics | undefined) {
 
   return (
     diagnostics.issueCount > 0 ||
+    (diagnostics.streetFaceReentryCount ?? 0) > 0 ||
     (diagnostics.nearestNeighborMissCount > 0 &&
       diagnostics.nearestNeighborMatchRate < 0.9)
   );
@@ -518,12 +523,22 @@ function shouldUseFallbackRoute(
 
   const routeIssues = routeDiagnostics?.issueCount ?? 0;
   const fallbackIssues = fallbackDiagnostics.issueCount;
+  const routeFaceReentries = routeDiagnostics?.streetFaceReentryCount ?? 0;
+  const fallbackFaceReentries = fallbackDiagnostics.streetFaceReentryCount ?? 0;
 
   if (fallbackIssues < routeIssues) {
     return true;
   }
 
   if (fallbackIssues > routeIssues) {
+    return false;
+  }
+
+  if (fallbackFaceReentries < routeFaceReentries) {
+    return true;
+  }
+
+  if (fallbackFaceReentries > routeFaceReentries) {
     return false;
   }
 
@@ -537,6 +552,8 @@ function getRouteQualitySortValue(route: OptimizedRoute) {
 
   return {
     issueCount: diagnostics?.issueCount ?? Number.POSITIVE_INFINITY,
+    streetFaceReentryCount:
+      diagnostics?.streetFaceReentryCount ?? Number.POSITIVE_INFINITY,
     continuity: diagnostics?.nearestNeighborMatchRate ?? 0,
     distanceMeters: route.distanceMeters || Number.POSITIVE_INFINITY,
   };
@@ -549,6 +566,16 @@ function chooseBestQualityRoute(routes: OptimizedRoute[]) {
 
     if (currentQuality.issueCount !== bestQuality.issueCount) {
       return currentQuality.issueCount < bestQuality.issueCount ? current : best;
+    }
+
+    if (
+      currentQuality.streetFaceReentryCount !==
+      bestQuality.streetFaceReentryCount
+    ) {
+      return currentQuality.streetFaceReentryCount <
+        bestQuality.streetFaceReentryCount
+        ? current
+        : best;
     }
 
     if (currentQuality.continuity !== bestQuality.continuity) {
@@ -620,7 +647,11 @@ function scoreRouteQualityAware(
   return (
     scoreRouteMeters(ordered, start, end) +
     jumpPenalty * 3 +
-    getStreetReentryPenaltyMeters(ordered)
+    (ordered.length > 1000
+      ? 0
+      : getNearestNeighborMissPenaltyMeters(ordered, start, end) * 2) +
+    getStreetReentryPenaltyMeters(ordered) +
+    getStreetFaceReentryPenaltyMeters(ordered)
   );
 }
 
@@ -684,6 +715,81 @@ function getStreetReentryPenaltyMeters(ordered: CoordinateStop[]) {
     }
 
     previousStreetKey = streetKey;
+  }
+
+  return penalty;
+}
+
+function getStreetFaceReentryPenaltyMeters(ordered: CoordinateStop[]) {
+  return getStreetFaceReentryCount(ordered) * 400;
+}
+
+function getStreetFaceReentryCount(ordered: CoordinateStop[]) {
+  let penalty = 0;
+  let currentStreetKey: string | undefined;
+  let previousSide: ParsedStreetStop["side"] | undefined;
+  let closedSides = new Set<ParsedStreetStop["side"]>();
+
+  for (const stop of ordered) {
+    const parsed = parseStreetStop(stop);
+
+    if (!parsed) {
+      currentStreetKey = undefined;
+      previousSide = undefined;
+      closedSides = new Set();
+      continue;
+    }
+
+    if (parsed.streetKey !== currentStreetKey) {
+      currentStreetKey = parsed.streetKey;
+      previousSide = undefined;
+      closedSides = new Set();
+    }
+
+    if (previousSide && parsed.side !== previousSide) {
+      closedSides.add(previousSide);
+    }
+
+    if (parsed.side !== previousSide && closedSides.has(parsed.side)) {
+      penalty += 1;
+    }
+
+    previousSide = parsed.side;
+  }
+
+  return penalty;
+}
+
+function getNearestNeighborMissPenaltyMeters(
+  ordered: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  const path = [
+    ...(start ? [start] : []),
+    ...ordered,
+    ...(end && end.id !== start?.id ? [end] : []),
+  ];
+  const lookAheadLimit = path.length > 1000 ? 250 : path.length;
+  let penalty = 0;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const from = path[index];
+    const to = path[index + 1];
+    const legDistance = getHaversineMeters(from, to);
+    const nearestLaterDistance = path
+      .slice(index + 1, index + 1 + lookAheadLimit)
+      .reduce(
+        (nearest, stop) => Math.min(nearest, getHaversineMeters(from, stop)),
+        Number.POSITIVE_INFINITY,
+      );
+
+    if (
+      Number.isFinite(nearestLaterDistance) &&
+      legDistance > nearestLaterDistance * 1.75 + 80
+    ) {
+      penalty += legDistance - nearestLaterDistance;
+    }
   }
 
   return penalty;
