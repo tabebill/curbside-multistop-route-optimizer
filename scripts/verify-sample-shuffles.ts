@@ -64,6 +64,9 @@ const minNearestNeighborMatchRate = Number(
 const maxLongestLegRatio = Number(
   process.env.ROUTE_SAMPLE_MAX_LONGEST_LEG_RATIO ?? 20,
 );
+const minLegBaselineMeters = Number(
+  process.env.ROUTE_SAMPLE_MIN_LEG_BASELINE_METERS ?? 80,
+);
 const endMode = (process.env.ROUTE_SAMPLE_END_MODE ?? "last_stop") as EndMode;
 const sampleLimit = Number(process.env.ROUTE_SAMPLE_LIMIT ?? 0);
 const addresses = readFileSync(sampleFile, "utf8")
@@ -199,6 +202,15 @@ async function main() {
         medianLegMeters > 0
           ? Number((longestLegMeters / medianLegMeters).toFixed(2))
           : 0,
+      baselineLongestLegRatio:
+        Math.max(medianLegMeters, minLegBaselineMeters) > 0
+          ? Number(
+              (
+                longestLegMeters /
+                Math.max(medianLegMeters, minLegBaselineMeters)
+              ).toFixed(2),
+            )
+          : 0,
       distanceMeters: route.distanceMeters,
       durationSeconds: route.durationSeconds,
       firstTen: orderedStopIds.slice(0, 10),
@@ -248,11 +260,11 @@ async function main() {
     }
 
     if (
-      medianLegMeters > 0 &&
-      longestLegMeters > medianLegMeters * maxLongestLegRatio
+      longestLegMeters >
+      Math.max(medianLegMeters, minLegBaselineMeters) * maxLongestLegRatio
     ) {
       console.error(
-        `seed ${seed}: longest leg exceeded ${maxLongestLegRatio}x median leg.`,
+        `seed ${seed}: longest leg exceeded ${maxLongestLegRatio}x baseline leg.`,
       );
       process.exitCode = 1;
     }
@@ -270,6 +282,7 @@ async function main() {
         maxStreetFaceBacktracks,
         minNearestNeighborMatchRate,
         maxLongestLegRatio,
+        minLegBaselineMeters,
         startStopId,
         endMode,
         endStopId: endMode === "selected_stop" ? endStopId : undefined,

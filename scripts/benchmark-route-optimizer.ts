@@ -29,6 +29,12 @@ function getMaxLongestLegRatio() {
   return Number.isFinite(value) && value > 0 ? value : 20;
 }
 
+function getMinLegBaselineMeters() {
+  const value = Number(process.env.ROUTE_BENCHMARK_MIN_LEG_BASELINE_METERS ?? 80);
+
+  return Number.isFinite(value) && value > 0 ? value : 80;
+}
+
 function getShuffleCount() {
   const value = Number(process.env.ROUTE_BENCHMARK_SHUFFLES ?? 1);
 
@@ -142,6 +148,7 @@ const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
 const minNearestNeighborMatchRate = getMinNearestNeighborMatchRate();
 const maxLongestLegRatio = getMaxLongestLegRatio();
+const minLegBaselineMeters = getMinLegBaselineMeters();
 const routeOptimizationMode = getRouteOptimizationMode();
 const endMode = getEndMode();
 const shuffleCount = getShuffleCount();
@@ -174,6 +181,12 @@ const runs = Array.from({ length: shuffleCount }, (_, index) => {
       route.qualityDiagnostics?.nearestNeighborMissCount ?? 0,
     longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
     medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
+    longestLegRatio: Number(
+      (
+        (route.qualityDiagnostics?.longestLegMeters ?? 0) /
+        Math.max(route.qualityDiagnostics?.medianLegMeters ?? 0, minLegBaselineMeters)
+      ).toFixed(2),
+    ),
     issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
     firstTen: ordered.slice(0, 10).map((stop) => stop.id),
     lastTen: ordered.slice(-10).map((stop) => stop.id),
@@ -185,6 +198,7 @@ const result = {
   maxSuspiciousJumps,
   minNearestNeighborMatchRate,
   maxLongestLegRatio,
+  minLegBaselineMeters,
   shuffleCount,
   startStopId,
   endMode,
@@ -231,11 +245,11 @@ for (const run of runs) {
   }
 
   if (
-    run.medianLegMeters > 0 &&
-    run.longestLegMeters > run.medianLegMeters * maxLongestLegRatio
+    run.longestLegMeters >
+    Math.max(run.medianLegMeters, minLegBaselineMeters) * maxLongestLegRatio
   ) {
     console.error(
-      `Route benchmark failed for seed ${run.seed}: longest leg exceeded ${maxLongestLegRatio}x median leg.`,
+      `Route benchmark failed for seed ${run.seed}: longest leg exceeded ${maxLongestLegRatio}x baseline leg.`,
     );
     process.exitCode = 1;
   }

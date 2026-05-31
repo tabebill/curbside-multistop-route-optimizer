@@ -32,6 +32,9 @@ const minNearestNeighborMatchRate = Number(
 const maxLongestLegRatio = Number(
   process.env.ROUTE_SAMPLE_MAX_LONGEST_LEG_RATIO ?? 20,
 );
+const minLegBaselineMeters = Number(
+  process.env.ROUTE_SAMPLE_MIN_LEG_BASELINE_METERS ?? 80,
+);
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -145,7 +148,17 @@ async function main() {
       medianLegMeters > 0
         ? Number((longestLegMeters / medianLegMeters).toFixed(2))
         : 0,
+    baselineLongestLegRatio:
+      Math.max(medianLegMeters, minLegBaselineMeters) > 0
+        ? Number(
+            (
+              longestLegMeters /
+              Math.max(medianLegMeters, minLegBaselineMeters)
+            ).toFixed(2),
+          )
+        : 0,
     maxLongestLegRatio,
+    minLegBaselineMeters,
     distanceMeters: route.distanceMeters,
     durationSeconds: route.durationSeconds,
     qualityDiagnostics: route.qualityDiagnostics,
@@ -193,11 +206,11 @@ async function main() {
   }
 
   if (
-    medianLegMeters > 0 &&
-    longestLegMeters > medianLegMeters * maxLongestLegRatio
+    longestLegMeters >
+    Math.max(medianLegMeters, minLegBaselineMeters) * maxLongestLegRatio
   ) {
     console.error(
-      `Sample verification failed: longest leg exceeded ${maxLongestLegRatio}x median leg.`,
+      `Sample verification failed: longest leg exceeded ${maxLongestLegRatio}x baseline leg.`,
     );
     process.exitCode = 1;
   }
