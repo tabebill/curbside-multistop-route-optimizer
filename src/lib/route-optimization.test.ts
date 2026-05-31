@@ -154,6 +154,10 @@ test("default route matches real sample-address first thirty neighborhood progre
     18, 17, 28, 16, 22, 23, 26, 27, 29, 30,
   ]);
   assert.equal(getRouteDiagnostics(ordered)?.suspiciousJumpCount, 0);
+  assert(
+    (getRouteDiagnostics(ordered)?.nearestNeighborMatchRate ?? 0) >= 0.9,
+    "sample progression should keep most next stops near the closest available stop",
+  );
 });
 
 test("default route stays clean when real sample-address imports arrive shuffled", () => {
@@ -173,6 +177,10 @@ test("default route stays clean when real sample-address imports arrive shuffled
       .filter((index) => index >= 0);
 
     assert.equal(diagnostics?.suspiciousJumpCount, 0, `seed ${seed}`);
+    assert(
+      (diagnostics?.nearestNeighborMatchRate ?? 0) >= 0.85,
+      `seed ${seed} should preserve nearest-neighbor continuity`,
+    );
     assert(
       e73Indexes.every((index) => firstOwassoIndex < 0 || index < firstOwassoIndex),
       `seed ${seed} should keep the E 73 ST N cluster before moving into Owasso`,
@@ -483,6 +491,9 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 
   assert.equal(route.qualityDiagnostics?.suspiciousJumpCount, 0);
+  assert(
+    (route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0) >= 0.9,
+  );
 });
 
 test("google optimized payload seeds Google but still asks Google to solve", () => {

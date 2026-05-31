@@ -52,6 +52,9 @@ const shuffleCount = Math.max(
 const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
+const minNearestNeighborMatchRate = Number(
+  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.75,
+);
 const endMode = (process.env.ROUTE_SAMPLE_END_MODE ?? "last_stop") as EndMode;
 const sampleLimit = Number(process.env.ROUTE_SAMPLE_LIMIT ?? 0);
 const addresses = readFileSync(sampleFile, "utf8")
@@ -160,6 +163,8 @@ async function main() {
     const route = await optimizeStops(shuffled, seed, startStopId, endStopId);
     const orderedStopIds = route.visitOrder.map((visit) => visit.stopId);
     const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+    const nearestNeighborMatchRate =
+      route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0;
     const uniqueVisits = new Set(orderedStopIds).size;
     const result = {
       seed,
@@ -168,6 +173,9 @@ async function main() {
       firstStopId: orderedStopIds[0],
       lastStopId: orderedStopIds.at(-1),
       suspiciousJumps,
+      nearestNeighborMatchRate,
+      nearestNeighborMissCount:
+        route.qualityDiagnostics?.nearestNeighborMissCount ?? 0,
       distanceMeters: route.distanceMeters,
       durationSeconds: route.durationSeconds,
       firstTen: orderedStopIds.slice(0, 10),
@@ -200,6 +208,11 @@ async function main() {
       console.error(`seed ${seed}: suspicious jump count exceeded threshold.`);
       process.exitCode = 1;
     }
+
+    if (nearestNeighborMatchRate < minNearestNeighborMatchRate) {
+      console.error(`seed ${seed}: nearest-neighbor continuity fell below threshold.`);
+      process.exitCode = 1;
+    }
   }
 
   console.log(
@@ -210,6 +223,7 @@ async function main() {
         geocodedStops: stops.length,
         shuffleCount,
         maxSuspiciousJumps,
+        minNearestNeighborMatchRate,
         startStopId,
         endMode,
         endStopId: endMode === "selected_stop" ? endStopId : undefined,

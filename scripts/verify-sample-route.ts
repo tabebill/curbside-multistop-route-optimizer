@@ -20,6 +20,9 @@ const sampleFile = process.env.ROUTE_SAMPLE_FILE ?? "sample-addresses.txt";
 const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
+const minNearestNeighborMatchRate = Number(
+  process.env.ROUTE_SAMPLE_MIN_NEAREST_MATCH_RATE ?? 0.75,
+);
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -105,6 +108,8 @@ async function main() {
 
   const orderedStopIds = route.visitOrder.map((visit) => visit.stopId);
   const suspiciousJumps = route.qualityDiagnostics?.suspiciousJumpCount ?? 0;
+  const nearestNeighborMatchRate =
+    route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0;
   const result = {
     sampleFile,
     addressCount: addresses.length,
@@ -113,6 +118,8 @@ async function main() {
     uniqueVisits: new Set(orderedStopIds).size,
     suspiciousJumps,
     maxSuspiciousJumps,
+    nearestNeighborMatchRate,
+    minNearestNeighborMatchRate,
     distanceMeters: route.distanceMeters,
     durationSeconds: route.durationSeconds,
     qualityDiagnostics: route.qualityDiagnostics,
@@ -139,6 +146,13 @@ async function main() {
 
   if (suspiciousJumps > maxSuspiciousJumps) {
     console.error("Sample verification failed: suspicious jump count exceeded threshold.");
+    process.exitCode = 1;
+  }
+
+  if (nearestNeighborMatchRate < minNearestNeighborMatchRate) {
+    console.error(
+      "Sample verification failed: nearest-neighbor continuity fell below threshold.",
+    );
     process.exitCode = 1;
   }
 }

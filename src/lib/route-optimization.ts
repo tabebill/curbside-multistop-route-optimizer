@@ -406,6 +406,29 @@ function analyzeRouteQuality(
     .filter((leg): leg is NonNullable<typeof leg> => Boolean(leg));
   const legDistances = legs.map((leg) => leg.distanceMeters);
   const medianLegMeters = getMedian(legDistances);
+  const nearestNeighborResults = legs
+    .map((leg, legIndex) => {
+      const laterVisits = visitOrder.slice(legIndex + 1);
+      const nearestLaterMeters = Math.min(
+        ...laterVisits
+          .map((visit) => {
+            const stop = getCoordinateForVisit(visit, stopsById, endpoints);
+
+            return stop ? getHaversineMeters(leg.fromStop, stop) : Infinity;
+          })
+          .filter(Number.isFinite),
+      );
+
+      if (!Number.isFinite(nearestLaterMeters)) {
+        return undefined;
+      }
+
+      return leg.distanceMeters <= nearestLaterMeters * 1.75 + 80;
+    })
+    .filter((result): result is boolean => result !== undefined);
+  const nearestNeighborMatchCount = nearestNeighborResults.filter(Boolean).length;
+  const nearestNeighborMissCount =
+    nearestNeighborResults.length - nearestNeighborMatchCount;
   const lookAheadLimit = visitOrder.length > 1000 ? 250 : visitOrder.length;
   const issues = legs.flatMap((leg, legIndex) => {
     if (leg.distanceMeters <= 805) {
@@ -455,6 +478,13 @@ function analyzeRouteQuality(
     suspiciousJumpCount: issues.length,
     medianLegMeters: Math.round(medianLegMeters),
     longestLegMeters: Math.round(Math.max(0, ...legDistances)),
+    nearestNeighborMatchRate: nearestNeighborResults.length
+      ? Number(
+          (nearestNeighborMatchCount / nearestNeighborResults.length).toFixed(4),
+        )
+      : 1,
+    nearestNeighborMatchCount,
+    nearestNeighborMissCount,
     issues,
   };
 }

@@ -72,6 +72,9 @@ export type RouteQualityDiagnostics = {
   suspiciousJumpCount: number;
   medianLegMeters: number;
   longestLegMeters: number;
+  nearestNeighborMatchRate: number;
+  nearestNeighborMatchCount: number;
+  nearestNeighborMissCount: number;
   issues: RouteQualityIssue[];
 };
 

@@ -17,6 +17,12 @@ function getMaxSuspiciousJumps() {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
 }
 
+function getMinNearestNeighborMatchRate() {
+  const value = Number(process.env.ROUTE_BENCHMARK_MIN_NEAREST_MATCH_RATE ?? 0.8);
+
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.8;
+}
+
 function getShuffleCount() {
   const value = Number(process.env.ROUTE_BENCHMARK_SHUFFLES ?? 1);
 
@@ -128,6 +134,7 @@ function benchmarkStops(
 
 const stopCount = getStopCount();
 const maxSuspiciousJumps = getMaxSuspiciousJumps();
+const minNearestNeighborMatchRate = getMinNearestNeighborMatchRate();
 const routeOptimizationMode = getRouteOptimizationMode();
 const endMode = getEndMode();
 const shuffleCount = getShuffleCount();
@@ -154,6 +161,10 @@ const runs = Array.from({ length: shuffleCount }, (_, index) => {
     lastStopId: ordered.at(-1)?.id,
     elapsedMs,
     suspiciousJumps,
+    nearestNeighborMatchRate:
+      route.qualityDiagnostics?.nearestNeighborMatchRate ?? 0,
+    nearestNeighborMissCount:
+      route.qualityDiagnostics?.nearestNeighborMissCount ?? 0,
     longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
     medianLegMeters: route.qualityDiagnostics?.medianLegMeters ?? 0,
     issues: route.qualityDiagnostics?.issues.slice(0, 5) ?? [],
@@ -165,6 +176,7 @@ const result = {
   routeOptimizationMode,
   requestedStops: stopCount,
   maxSuspiciousJumps,
+  minNearestNeighborMatchRate,
   shuffleCount,
   startStopId,
   endMode,
@@ -199,6 +211,13 @@ for (const run of runs) {
   if (run.suspiciousJumps > maxSuspiciousJumps) {
     console.error(
       `Route benchmark failed for seed ${run.seed}: suspicious jump count exceeded threshold.`,
+    );
+    process.exitCode = 1;
+  }
+
+  if (run.nearestNeighborMatchRate < minNearestNeighborMatchRate) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: nearest-neighbor continuity fell below threshold.`,
     );
     process.exitCode = 1;
   }
