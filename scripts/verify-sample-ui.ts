@@ -8,6 +8,10 @@ const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean);
+const expectedFirstTenInputIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12];
+const expectedFirstTenLabels = expectedFirstTenInputIndexes.map(
+  (index) => addresses[index],
+);
 
 function getMatch(value: string, pattern: RegExp) {
   return value.match(pattern)?.[1];
@@ -66,11 +70,28 @@ async function main() {
     const routeQualityClean = bodyText.includes("Route quality clean");
     const routeQualityReview = bodyText.includes("Route quality review");
     const hasContinuity = /Continuity:\s+100%/.test(bodyText);
+    const renderedFirstTenStops = await page
+      .locator("h2", { hasText: /Navigation/i })
+      .locator("xpath=ancestor::div[contains(@class,'border')][1]")
+      .locator("ol li")
+      .evaluateAll((items) =>
+        items
+          .slice(0, 10)
+          .map((item) => item.textContent?.replace(/\s+/g, " ").trim() ?? ""),
+      );
+    const expectedFirstTenInOrder = expectedFirstTenLabels.every(
+      (label, index) => renderedFirstTenStops[index]?.includes(label),
+    );
     const result = {
       sampleFile,
       addressCount: addresses.length,
       uiStopCount: stopCount,
       hasLastSequence,
+      expectedFirstTenInputSequence: expectedFirstTenInputIndexes.map(
+        (index) => String(index + 1),
+      ),
+      renderedFirstTenStops,
+      expectedFirstTenInOrder,
       routeQualityClean,
       routeQualityReview,
       hasContinuity,
@@ -87,6 +108,10 @@ async function main() {
 
     if (!hasLastSequence) {
       throw new Error("UI verification failed: navigation did not include the final sequence.");
+    }
+
+    if (!expectedFirstTenInOrder) {
+      throw new Error("UI verification failed: sample route first ten sequence drifted.");
     }
 
     if (!routeQualityClean || routeQualityReview || !hasContinuity) {
