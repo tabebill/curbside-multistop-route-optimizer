@@ -141,6 +141,46 @@ test("default route reduces long jumps when several compact clusters are interle
   );
 });
 
+test("default route handles inner-pocket stops without leaving them scattered late", () => {
+  const ringStops = Array.from({ length: 24 }, (_, index) => {
+    const angle = (index / 24) * Math.PI * 2;
+
+    return {
+      id: `ring-${index}`,
+      label: `Ring ${index}`,
+      latitude: 36 + Math.sin(angle) * 0.02,
+      longitude: -96 + Math.cos(angle) * 0.02,
+    };
+  });
+  const innerStops = Array.from({ length: 8 }, (_, index) => {
+    const angle = (index / 8) * Math.PI * 2;
+
+    return {
+      id: `inner-${index}`,
+      label: `Inner ${index}`,
+      latitude: 36 + Math.sin(angle) * 0.004,
+      longitude: -96 + Math.cos(angle) * 0.004,
+    };
+  });
+  const interleavedStops = ringStops.flatMap((ringStop, index) =>
+    index % 3 === 0 ? [ringStop, innerStops[index / 3]] : [ringStop],
+  );
+  const optimized = buildLocalOptimizedStopSequenceForTesting({
+    stops: interleavedStops,
+    startStopId: "ring-0",
+    endMode: "last_stop",
+    routeOptimizationMode: "google_optimized",
+  });
+  const innerPositions = optimized
+    .map((stop, index) => (stop.id.startsWith("inner-") ? index : -1))
+    .filter((index) => index >= 0);
+
+  assert(
+    Math.max(...innerPositions) - Math.min(...innerPositions) < 16,
+    "inner-pocket stops should be handled as a local pocket, not scattered across the route",
+  );
+});
+
 test("2-opt improvement does not make a nearest-next route worse", () => {
   const stops: CoordinateStop[] = [
     { id: "start", label: "Start", latitude: 0, longitude: 0 },

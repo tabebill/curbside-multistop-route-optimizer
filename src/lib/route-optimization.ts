@@ -507,6 +507,73 @@ function orderNearestFromAnchor(
   return orientRouteNearStart([anchor, ...anchoredOrder], start, end);
 }
 
+function orderByCheapestInsertion(
+  stops: CoordinateStop[],
+  start: CoordinateStop | undefined,
+  end: CoordinateStop | undefined,
+) {
+  if (stops.length > 700) {
+    return undefined;
+  }
+
+  if (stops.length < 3) {
+    return orderNearestStops(stops, start);
+  }
+
+  const remaining = [...stops];
+  const firstIndex = start
+    ? remaining.reduce((bestIndex, stop, index) =>
+        getHaversineMeters(start, stop) <
+        getHaversineMeters(start, remaining[bestIndex])
+          ? index
+          : bestIndex,
+      0)
+    : 0;
+  const [first] = remaining.splice(firstIndex, 1);
+  const ordered = [first];
+  const insertionWindow = stops.length > 1000 ? 150 : stops.length;
+
+  while (remaining.length) {
+    let bestStopIndex = 0;
+    let bestInsertIndex = ordered.length;
+    let bestCost = Number.POSITIVE_INFINITY;
+    const candidateLimit = Math.min(remaining.length, insertionWindow);
+    const candidateStops =
+      remaining.length > candidateLimit
+        ? orderNearestStops(remaining, ordered.at(-1)).slice(0, candidateLimit)
+        : remaining;
+    const candidateIds = new Set(candidateStops.map((stop) => stop.id));
+
+    for (let stopIndex = 0; stopIndex < remaining.length; stopIndex += 1) {
+      const stop = remaining[stopIndex];
+
+      if (!candidateIds.has(stop.id)) {
+        continue;
+      }
+
+      for (let insertIndex = 0; insertIndex <= ordered.length; insertIndex += 1) {
+        const before = insertIndex === 0 ? start : ordered[insertIndex - 1];
+        const after = insertIndex === ordered.length ? end : ordered[insertIndex];
+        const removedCost = after ? getHaversineMeters(before, after) : 0;
+        const addedCost =
+          getHaversineMeters(before, stop) + getHaversineMeters(stop, after);
+        const insertionCost = addedCost - removedCost;
+
+        if (insertionCost < bestCost) {
+          bestCost = insertionCost;
+          bestStopIndex = stopIndex;
+          bestInsertIndex = insertIndex;
+        }
+      }
+    }
+
+    const [nextStop] = remaining.splice(bestStopIndex, 1);
+    ordered.splice(bestInsertIndex, 0, nextStop);
+  }
+
+  return ordered;
+}
+
 function reverseSegment<T>(items: T[], startIndex: number, endIndex: number) {
   while (startIndex < endIndex) {
     const item = items[startIndex];
@@ -707,9 +774,11 @@ function orderDefaultRouteStops(
   const anchorNearestCandidates = getAnchorStops(stops).map((anchor) =>
     orderNearestFromAnchor(stops, anchor, start, end),
   );
+  const cheapestInsertionCandidate = orderByCheapestInsertion(stops, start, end);
   const candidates = uniqueRouteCandidates([
     orderNearestStops(stops, start),
     ...anchorNearestCandidates,
+    ...(cheapestInsertionCandidate ? [cheapestInsertionCandidate] : []),
     orientRouteNearStart(hilbert, start, end),
     orientRouteNearStart([...hilbert].reverse(), start, end),
     orientRouteNearStart(orderByCoordinateSweep(stops, "latitude", "asc"), start, end),
