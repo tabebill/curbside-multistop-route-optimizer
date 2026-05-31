@@ -96,7 +96,15 @@ function benchmarkStops(
     routeOptimizationMode,
   });
   const elapsedMs = performance.now() - startedAt;
-  const shipmentStops = ordered.slice(1);
+  const start = ordered[0];
+  const end =
+    endMode === "selected_stop"
+      ? ordered.find((stop) => stop.id === endStopId)
+      : endMode === "round_trip"
+        ? start
+        : undefined;
+  const fixedStopIds = new Set([start?.id, end?.id].filter(Boolean));
+  const shipmentStops = ordered.filter((stop) => !fixedStopIds.has(stop.id));
   const route = normalizeOptimizeToursResponse(
     {
       routes: [
@@ -106,7 +114,7 @@ function benchmarkStops(
       ],
     },
     shipmentStops,
-    { start: ordered[0] },
+    { start, end },
   );
   const uniqueStops = new Set(ordered.map((stop) => stop.id)).size;
 
@@ -142,6 +150,8 @@ const runs = Array.from({ length: shuffleCount }, (_, index) => {
     seed,
     orderedStops: ordered.length,
     uniqueStops,
+    firstStopId: ordered[0]?.id,
+    lastStopId: ordered.at(-1)?.id,
     elapsedMs,
     suspiciousJumps,
     longestLegMeters: route.qualityDiagnostics?.longestLegMeters ?? 0,
@@ -168,6 +178,20 @@ for (const run of runs) {
   if (run.orderedStops !== stopCount || run.uniqueStops !== stopCount) {
     console.error(
       `Route benchmark failed for seed ${run.seed}: ordered stops are missing or duplicated.`,
+    );
+    process.exitCode = 1;
+  }
+
+  if (run.firstStopId !== startStopId) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: route does not start at ${startStopId}.`,
+    );
+    process.exitCode = 1;
+  }
+
+  if (endMode === "selected_stop" && run.lastStopId !== endStopId) {
+    console.error(
+      `Route benchmark failed for seed ${run.seed}: route does not end at ${endStopId}.`,
     );
     process.exitCode = 1;
   }

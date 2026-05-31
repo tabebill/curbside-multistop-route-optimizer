@@ -53,10 +53,12 @@ const maxSuspiciousJumps = Number(
   process.env.ROUTE_SAMPLE_MAX_SUSPICIOUS_JUMPS ?? 0,
 );
 const endMode = (process.env.ROUTE_SAMPLE_END_MODE ?? "last_stop") as EndMode;
+const sampleLimit = Number(process.env.ROUTE_SAMPLE_LIMIT ?? 0);
 const addresses = readFileSync(sampleFile, "utf8")
   .split(/\r?\n/)
   .map((line) => line.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .slice(0, Number.isFinite(sampleLimit) && sampleLimit > 0 ? sampleLimit : undefined);
 
 async function postJson<T>(path: string, body: unknown) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -163,6 +165,8 @@ async function main() {
       seed,
       visitCount: route.visitOrder.length,
       uniqueVisits,
+      firstStopId: orderedStopIds[0],
+      lastStopId: orderedStopIds.at(-1),
       suspiciousJumps,
       distanceMeters: route.distanceMeters,
       durationSeconds: route.durationSeconds,
@@ -179,6 +183,16 @@ async function main() {
 
     if (uniqueVisits !== route.visitOrder.length) {
       console.error(`seed ${seed}: optimized route contains duplicate visits.`);
+      process.exitCode = 1;
+    }
+
+    if (orderedStopIds[0] !== startStopId) {
+      console.error(`seed ${seed}: optimized route does not start at ${startStopId}.`);
+      process.exitCode = 1;
+    }
+
+    if (endMode === "selected_stop" && orderedStopIds.at(-1) !== endStopId) {
+      console.error(`seed ${seed}: optimized route does not end at ${endStopId}.`);
       process.exitCode = 1;
     }
 
