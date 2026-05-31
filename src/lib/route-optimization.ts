@@ -312,6 +312,29 @@ function getNearestGroupDistance(
   }, Number.POSITIVE_INFINITY);
 }
 
+function orderNearestStops(
+  stops: CoordinateStop[],
+  start: CoordinateStop | undefined,
+) {
+  const remaining = [...stops];
+  const ordered: CoordinateStop[] = [];
+  let cursor = start;
+
+  while (remaining.length) {
+    const nextIndex = remaining.reduce((bestIndex, stop, index) =>
+      getDistance(cursor, stop) < getDistance(cursor, remaining[bestIndex])
+        ? index
+        : bestIndex,
+    0);
+    const [nextStop] = remaining.splice(nextIndex, 1);
+
+    ordered.push(nextStop);
+    cursor = nextStop;
+  }
+
+  return ordered;
+}
+
 function orderCurbsideStops(
   stops: CoordinateStop[],
   start: CoordinateStop | undefined,
@@ -430,7 +453,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const routeOptimizationMode = getRouteOptimizationMode(options);
   const usesCurbsideWaypoints = routeOptimizationMode !== "google_optimized";
   const usesStrictCurbsideSequence = routeOptimizationMode === "curbside_strict";
-  const usesCurbsideSequenceRoute =
+  const usesNearestSequenceRoute =
     routeOptimizationMode === "google_optimized" && !options.validateOnly;
   const stops = filterValidCoordinateStops(options.stops);
   const { start, end } = getRouteEndpoints({
@@ -440,8 +463,8 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
     endStopId: options.endStopId,
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
-  const shipmentStops = usesCurbsideSequenceRoute
-    ? orderCurbsideStops(unorderedShipmentStops, start)
+  const shipmentStops = usesNearestSequenceRoute
+    ? orderNearestStops(unorderedShipmentStops, start)
     : usesStrictCurbsideSequence
       ? orderCurbsideStops(unorderedShipmentStops, start)
       : unorderedShipmentStops;
@@ -453,7 +476,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   const injectedSolutionConstraint = usesStrictCurbsideSequence
     ? getInjectedSolutionConstraint(shipmentStops, tomorrow, endTime)
     : undefined;
-  const refreshDetailsRoute = usesCurbsideSequenceRoute
+  const refreshDetailsRoute = usesNearestSequenceRoute
     ? getRefreshDetailsRoute(shipmentStops, tomorrow, endTime)
     : undefined;
 
