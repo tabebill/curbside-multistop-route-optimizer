@@ -792,7 +792,7 @@ test("route quality diagnostics stay clean for optimized first twenty sample sto
   );
 });
 
-test("nearest neighbor mode numbers each sample stop from the closest previous stop", () => {
+test("nearest neighbor mode prefers same-side street groups before crossing", () => {
   const ordered = buildLocalOptimizedStopSequenceForTesting({
     stops: firstTwentySampleStops,
     startStopId: "1",
@@ -807,15 +807,12 @@ test("nearest neighbor mode numbers each sample stop from the closest previous s
       "2",
       "3",
       "4",
-      "5",
+      "11",
+      "9",
+      "8",
       "7",
       "6",
-      "8",
-      "9",
-      "13",
-      "10",
-      "12",
-      "11",
+      "5",
       "20",
       "14",
       "15",
@@ -823,9 +820,13 @@ test("nearest neighbor mode numbers each sample stop from the closest previous s
       "18",
       "17",
       "16",
+      "10",
+      "12",
+      "13",
     ],
   );
-  assert.equal(getRouteDiagnostics(ordered)?.nearestNeighborMissCount, 0);
+  assert.equal(getRouteDiagnostics(ordered)?.streetFaceReentryCount, 0);
+  assert.equal(getRouteDiagnostics(ordered)?.streetFaceBacktrackCount, 0);
 });
 
 test("curbside assisted fallback rejects same-street side reentry", () => {

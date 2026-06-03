@@ -16,6 +16,7 @@ type RouteMapProps = {
   };
   optimizedStopIds?: string[];
   routePolyline?: string;
+  showRouteLines?: boolean;
   selectedStopId?: string;
   navigationStopId?: string;
   onSelectStop: (stopId: string) => void;
@@ -27,6 +28,7 @@ export function RouteMap({
   currentLocation,
   optimizedStopIds = [],
   routePolyline,
+  showRouteLines = false,
   selectedStopId,
   navigationStopId,
   onSelectStop,
@@ -221,7 +223,7 @@ export function RouteMap({
     directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
     directionsPolylinesRef.current = [];
 
-    if (!routePolyline) {
+    if (!showRouteLines || !routePolyline) {
       return;
     }
 
@@ -251,13 +253,14 @@ export function RouteMap({
     return () => {
       polyline.setMap(null);
     };
-  }, [routePolyline, navigationStopId]);
+  }, [routePolyline, navigationStopId, showRouteLines]);
 
   useEffect(() => {
     const map = mapRef.current;
 
     if (
       !map ||
+      !showRouteLines ||
       routePolyline ||
       orderedRouteStops.length < 2 ||
       typeof google === "undefined"
@@ -363,7 +366,7 @@ export function RouteMap({
       directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
       directionsPolylinesRef.current = [];
     };
-  }, [orderedRouteStops, routePolyline]);
+  }, [orderedRouteStops, routePolyline, showRouteLines]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -406,7 +409,7 @@ export function RouteMap({
       <div ref={mapElementRef} className="h-full w-full" />
       <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-2 text-xs font-semibold text-foreground shadow-sm">
         <MapPin className="h-4 w-4 text-accent" />
-        {routePolyline || orderedRouteStops.length > 1
+        {showRouteLines && (routePolyline || orderedRouteStops.length > 1)
           ? "Optimized route"
           : `${coordinateStops.length.toLocaleString()} mapped`}
       </div>

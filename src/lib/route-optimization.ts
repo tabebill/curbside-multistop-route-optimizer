@@ -906,41 +906,66 @@ function orderStreetFace(
     .map((item) => item.stop);
 }
 
+function orderStreetFaceFromCursor(
+  stops: ParsedStreetStop[],
+  cursor: CoordinateStop | undefined,
+) {
+  if (!stops.length) {
+    return [];
+  }
+
+  const ascending = orderStreetFace(stops, "asc");
+  const descending = orderStreetFace(stops, "desc");
+
+  return scoreOrder(ascending, cursor) <= scoreOrder(descending, cursor)
+    ? ascending
+    : descending;
+}
+
+function getNearestSideDistance(
+  cursor: CoordinateStop | undefined,
+  stops: ParsedStreetStop[],
+) {
+  return stops.reduce(
+    (nearest, item) => Math.min(nearest, getDistance(cursor, item.stop)),
+    Number.POSITIVE_INFINITY,
+  );
+}
+
 function orderStreetGroup(
   stops: ParsedStreetStop[],
   start: CoordinateStop | undefined,
 ) {
   const even = stops.filter((stop) => stop.side === "even");
   const odd = stops.filter((stop) => stop.side === "odd");
-  const candidates: CoordinateStop[][] = [];
+  const sides = [even, odd].filter((side) => side.length);
 
-  if (even.length && odd.length) {
-    candidates.push([
-      ...orderStreetFace(even, "asc"),
-      ...orderStreetFace(odd, "desc"),
-    ]);
-    candidates.push([
-      ...orderStreetFace(even, "desc"),
-      ...orderStreetFace(odd, "asc"),
-    ]);
-    candidates.push([
-      ...orderStreetFace(odd, "asc"),
-      ...orderStreetFace(even, "desc"),
-    ]);
-    candidates.push([
-      ...orderStreetFace(odd, "desc"),
-      ...orderStreetFace(even, "asc"),
-    ]);
-  } else {
-    const side = even.length ? even : odd;
-
-    candidates.push(orderStreetFace(side, "asc"));
-    candidates.push(orderStreetFace(side, "desc"));
+  if (!sides.length) {
+    return [];
   }
 
-  return candidates.reduce((best, candidate) =>
-    scoreOrder(candidate, start) < scoreOrder(best, start) ? candidate : best,
-  );
+  const orderedSides = [...sides].sort((a, b) => {
+    const distanceDelta =
+      getNearestSideDistance(start, a) - getNearestSideDistance(start, b);
+
+    if (distanceDelta !== 0) {
+      return distanceDelta;
+    }
+
+    return a[0].houseNumber - b[0].houseNumber;
+  });
+
+  const ordered: CoordinateStop[] = [];
+  let cursor = start;
+
+  for (const side of orderedSides) {
+    const orderedSide = orderStreetFaceFromCursor(side, cursor);
+
+    ordered.push(...orderedSide);
+    cursor = orderedSide.at(-1) ?? cursor;
+  }
+
+  return ordered;
 }
 
 function getNearestGroupDistance(
@@ -2456,7 +2481,7 @@ export function buildLocalOptimizedStopSequenceForTesting(options: {
     options.routeOptimizationMode ?? "google_optimized";
   const orderedStops =
     routeOptimizationMode === "nearest_neighbor"
-      ? orderNearestStops(shipmentStops, start)
+      ? orderCurbsideStops(shipmentStops, start)
       : routeOptimizationMode === "google_optimized" || routeOptimizationMode === "auto"
       ? orderDefaultRouteStops(shipmentStops, start, end)
       : routeOptimizationMode === "curbside_strict" ||
@@ -2603,7 +2628,7 @@ export function prepareOptimizeToursRequest(options: OptimizeRequestOptions) {
   });
   const unorderedShipmentStops = getShipmentStops(stops, start, end);
   const shipmentStops = usesNearestSequence
-    ? orderNearestStops(unorderedShipmentStops, start)
+    ? orderCurbsideStops(unorderedShipmentStops, start)
     : usesSeededSolve
     ? routeOptimizationMode === "curbside_assisted"
       ? orderCurbsideStops(unorderedShipmentStops, start)
