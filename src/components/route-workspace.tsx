@@ -514,6 +514,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute>();
   const [batchJob, setBatchJob] = useState<BatchOptimizationJob>();
   const [navigationIndex, setNavigationIndex] = useState(0);
+  const [navigationFocusStopId, setNavigationFocusStopId] = useState<string>();
   const [selectedStopId, setSelectedStopId] = useState<string>();
   const [systemStatus, setSystemStatus] = useState<SystemStatus>();
   const [notice, setNotice] = useState("");
@@ -767,7 +768,6 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     : 0;
   const currentNavigationVisit =
     optimizedRoute?.visitOrder[safeNavigationIndex] ?? optimizedRoute?.visitOrder[0];
-  const navigationStopId = currentNavigationVisit?.stopId;
 
   const addStops = useCallback((nextStops: RouteStop[]) => {
     const result = mergeDedupedStops(stops, nextStops);
@@ -1292,6 +1292,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     setOptimizedRoute(nextRoute);
     setStops((current) => buildOrderedStops(current, nextRoute));
     setNavigationIndex(0);
+    setNavigationFocusStopId(undefined);
     setBatchJob(undefined);
     setNotice(formatOptimizedRouteNotice(nextRoute));
   }
@@ -1371,6 +1372,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
         setOptimizedRoute(nextRoute);
         setStops((current) => buildOrderedStops(current, nextRoute));
         setNavigationIndex(0);
+        setNavigationFocusStopId(undefined);
         setBatchJob({ ...job, status: "completed" });
         setNotice(
           nextRoute.qualityFallback?.applied && nextRoute.qualityFallback.message
@@ -1424,6 +1426,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
     }
 
     setNavigationIndex(index);
+    setNavigationFocusStopId(visit.stopId);
   }
 
   function moveVisit(stopId: string, direction: -1 | 1) {
@@ -1963,7 +1966,7 @@ export function RouteWorkspace({ googleMapsBrowserKey }: RouteWorkspaceProps) {
               optimizedStopIds={optimizedStopIds}
               routePolyline={optimizedRoute?.polyline}
               selectedStopId={selectedStopId}
-              navigationStopId={navigationStopId}
+              navigationStopId={navigationFocusStopId}
               onSelectStop={setSelectedStopId}
             />
 

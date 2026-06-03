@@ -36,6 +36,7 @@ export function RouteMap({
   const markersRef = useRef<google.maps.Marker[]>([]);
   const clustererRef = useRef<MarkerClusterer | null>(null);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const directionsPolylinesRef = useRef<google.maps.Polyline[]>([]);
   const [mapError, setMapError] = useState("");
 
   const coordinateStops = useMemo(
@@ -71,6 +72,24 @@ export function RouteMap({
       ),
     [optimizedStopIds],
   );
+  const orderedRouteStops = useMemo(() => {
+    if (!optimizedStopIds.length) {
+      return [];
+    }
+
+    const stopById = new Map(coordinateStops.map((stop) => [stop.id, stop]));
+
+    return optimizedStopIds
+      .map((stopId) => stopById.get(stopId))
+      .filter(
+        (
+          stop,
+        ): stop is RouteStop & { latitude: number; longitude: number } =>
+          Boolean(stop) &&
+          stop?.latitude !== undefined &&
+          stop.longitude !== undefined,
+      );
+  }, [coordinateStops, optimizedStopIds]);
 
   useEffect(() => {
     let disposed = false;
@@ -199,6 +218,8 @@ export function RouteMap({
 
     routePolylineRef.current?.setMap(null);
     routePolylineRef.current = null;
+    directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+    directionsPolylinesRef.current = [];
 
     if (!routePolyline) {
       return;
@@ -231,6 +252,118 @@ export function RouteMap({
       polyline.setMap(null);
     };
   }, [routePolyline, navigationStopId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (
+      !map ||
+      routePolyline ||
+      orderedRouteStops.length < 2 ||
+      typeof google === "undefined"
+    ) {
+      return;
+    }
+
+    let disposed = false;
+    const activeMap = map;
+    const directionsService = new google.maps.DirectionsService();
+    const bounds = new google.maps.LatLngBounds();
+    const maxStopsForRoadPreview = 250;
+    const maxWaypointsPerRequest = 23;
+
+    directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+    directionsPolylinesRef.current = [];
+
+    orderedRouteStops.forEach((stop) =>
+      bounds.extend({ lat: stop.latitude, lng: stop.longitude }),
+    );
+    activeMap.fitBounds(bounds, 56);
+
+    if (orderedRouteStops.length > maxStopsForRoadPreview) {
+      return () => {
+        disposed = true;
+        directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+        directionsPolylinesRef.current = [];
+      };
+    }
+
+    async function drawRoadPreview() {
+      for (
+        let startIndex = 0;
+        startIndex < orderedRouteStops.length - 1;
+        startIndex += maxWaypointsPerRequest
+      ) {
+        const chunk = orderedRouteStops.slice(
+          startIndex,
+          Math.min(
+            orderedRouteStops.length,
+            startIndex + maxWaypointsPerRequest + 2,
+          ),
+        );
+        const origin = chunk[0];
+        const destination = chunk.at(-1);
+
+        if (!origin || !destination) {
+          continue;
+        }
+
+        const result = await directionsService.route({
+          origin: { lat: origin.latitude, lng: origin.longitude },
+          destination: {
+            lat: destination.latitude,
+            lng: destination.longitude,
+          },
+          waypoints: chunk.slice(1, -1).map((stop) => ({
+            location: { lat: stop.latitude, lng: stop.longitude },
+            stopover: true,
+          })),
+          optimizeWaypoints: false,
+          travelMode: google.maps.TravelMode.DRIVING,
+        });
+
+        if (disposed) {
+          return;
+        }
+
+        const path = result.routes[0]?.overview_path ?? [];
+
+        if (!path.length) {
+          continue;
+        }
+
+        const polyline = new google.maps.Polyline({
+          path,
+          geodesic: true,
+          strokeColor: "#0f766e",
+          strokeOpacity: 0.9,
+          strokeWeight: 5,
+          zIndex: 1,
+        });
+
+        path.forEach((point) => bounds.extend(point));
+        polyline.setMap(activeMap);
+        directionsPolylinesRef.current.push(polyline);
+        activeMap.fitBounds(bounds, 56);
+      }
+    }
+
+    drawRoadPreview().catch((error: unknown) => {
+      if (!disposed) {
+        setMapError(
+          error instanceof Error
+            ? error.message
+            : "Unable to draw the drivable route preview",
+        );
+      }
+    });
+
+    return () => {
+      disposed = true;
+      directionsPolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+      directionsPolylinesRef.current = [];
+    };
+  }, [orderedRouteStops, routePolyline]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -273,7 +406,7 @@ export function RouteMap({
       <div ref={mapElementRef} className="h-full w-full" />
       <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-2 text-xs font-semibold text-foreground shadow-sm">
         <MapPin className="h-4 w-4 text-accent" />
-        {routePolyline
+        {routePolyline || orderedRouteStops.length > 1
           ? "Optimized route"
           : `${coordinateStops.length.toLocaleString()} mapped`}
       </div>
