@@ -2,14 +2,29 @@
 
 A simple, API-free Next.js demo for street-sweep route ordering. Paste a list of addresses, choose a start stop, and compare a normal nearest-neighbor route with a curbside route that finishes one side of a street before crossing to the other side.
 
-This repository has two versions:
+This repository has three versions:
 
 | Branch | Best for | External services | Notes |
 | --- | --- | --- | --- |
 | `main` | Trying the curbside ordering idea quickly | None | API-free demo with a schematic route preview. |
-| `production` | Building a real Google-backed multi-stop app | Google Maps Platform + Google Cloud | Requires your own API keys, service account, billing, and Cloud Storage bucket. |
+| `multi-stop-pins` | Recommended Google-backed app | Google Maps Platform + Google Cloud | Current successful version. Uses real Google map pins, Google Route Optimization, chunked Directions route lines, and in-app stop navigation. |
+| `production` | Older full-stack production experiment | Google Maps Platform + Google Cloud | More complex branch with Cloud Storage and large-route experiments. Useful as a reference, but `multi-stop-pins` is the better starting point for efficient routing. |
 
 The `main` branch keeps the interesting routing idea while avoiding API keys, cloud credentials, user accounts, and paid map services.
+
+## Recommended Branch
+
+Use `multi-stop-pins` if you want the most practical version of this project today.
+
+That branch succeeded better than the older `production` branch for the current routing goal because it focuses on the working flow:
+
+- Preview all stops as numbered pins directly on Google Maps.
+- Optimize stop order with Google's Route Optimization API.
+- Draw motorable road route lines with Google Directions in manageable chunks.
+- Keep navigation inside the web app with Previous / Next stop controls.
+- Avoid the extra Cloud Storage batch-job complexity unless you truly need that later.
+
+The `production` branch is still useful as a reference for larger production ideas, but it is heavier and was less efficient for the current multi-stop routing workflow.
 
 ## Features
 
@@ -57,6 +72,18 @@ npm run dev
 
 Then fill `.env.local` with your own Google credentials. Do not commit `.env.local` or service account JSON files.
 
+Use the recommended Google-backed branch:
+
+```bash
+git clone -b multi-stop-pins https://github.com/tabebill/curbside-multistop-route-optimizer.git multi-stop-pins
+cd multi-stop-pins
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Then fill `.env.local` with your own Google Maps browser key, server Geocoding key, Google Cloud project ID, and Route Optimization service-account credential path.
+
 ## Scripts
 
 - `npm run dev` starts the local app.
@@ -72,7 +99,8 @@ Then fill `.env.local` with your own Google credentials. Do not commit `.env.loc
 
 ## Production Ideas
 
-- The `production` branch includes Google Maps rendering, server-side geocoding, Route Optimization API calls, async large-route jobs, Cloud Storage integration, exports, and the curbside street-sweep ordering layer.
+- The `multi-stop-pins` branch is the recommended production starting point for the current app shape: Google Maps pins, server-side geocoding, Route Optimization API ordering, chunked Google Directions route lines, and in-app navigation.
+- The `production` branch includes older experiments for async large-route jobs, Cloud Storage integration, exports, and the curbside street-sweep ordering layer.
 - Next production steps include authentication, persistence/database storage, user-owned saved routes, billing controls, and deployment hardening.
 
 ## License
